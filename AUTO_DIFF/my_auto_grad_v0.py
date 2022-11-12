@@ -230,14 +230,14 @@ Op.__pow__ = OpInit2Func(Pow)
 # plt.show()
 
 # # softmax 测试 OK
-def test_softmax():
+def my_test_softmax():
     y = C(np.eye(4)[np.random.randint(0, 4, 15)])
     z = C(np.random.uniform(-10, 10, (15, 4)), requires_grad=True)
     z_exp = Exp(z)
     a = z_exp / SumAxis(z_exp, axis=1)
     L = Sum(y * Log(a))
     L.backward()
-    print(np.c_[y._v - a._v, z._d])
+    print((y._v - a._v) / z._d)
 
 if __name__ == '__main__':
-    test_softmax()
+    my_test_softmax()

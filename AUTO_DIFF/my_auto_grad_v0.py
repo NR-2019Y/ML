@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 # 参考
 # https://zhuanlan.zhihu.com/p/161635270
 # https://github.com/dlsys-course/assignment1-2018/blob/master/autodiff.py
+eps = 1e-10
 
 class Op:
     # dfs 实现拓扑排序
@@ -32,9 +33,7 @@ class Op:
     def backward(self):
         assert hasattr(self, "_d")
         self._d = 1.0
-        # 图的结构是固定不动的，一次拓扑排序即可
-        if not hasattr(self, "ord_nodes"):
-            self._dfs()
+        self._dfs()
         for node in self.ord_nodes:
             if hasattr(node, "nodes"):
                 node.back_calc_grad()
@@ -103,7 +102,7 @@ class TrueDiv(Op):
         if hasattr(node1, "_d"):
             node1._d += self._d / node2._v
         if hasattr(node2, "_d"):
-            node2._d -= self._d * node1._v / (node2._v ** 2)
+            node2._d -= self._d * node1._v / (node2._v ** 2 + eps)
 
 class MatMul(Op):
     def __init__(self, node1, node2):
@@ -159,7 +158,8 @@ class Pow(Op):
         # dn3 / dn1 = n2 * n1 ** (n2 - 1) = n3 * n2 / n1
         # dn3 / dn2 = n1 ** n2 * ln(n1)
         if hasattr(node1, "_d"):
-            node1._d += self._d * self._v * node2._v / node1._v
+            node1._d += self._d * self._v * node2._v / (node1._v + eps)
+            # node1._d += self._d * node2._v * node1._v ** (node2._v - 1)
         if hasattr(node2, "_d"):
             node2._d += self._d * self._v * np.log(node1._v)
 
@@ -206,7 +206,7 @@ Op.__pow__ = OpInit2Func(Pow)
 
 # x1 = C(2.0, requires_grad=True)
 # x2 = C(3.0, requires_grad=True)
-# z = (x1 ** C(2)) * x2 + x2 #+ C(2.0)
+# z = (x1 ** C(2)) * x2 + x2 + C(2.0)
 # z.backward()
 # print(x1._d, x2._d)
 

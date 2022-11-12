@@ -1,11 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-# 实现自动微分
+# 实现反向自动微分
 # 参考
 # https://zhuanlan.zhihu.com/p/161635270
 # https://github.com/dlsys-course/assignment1-2018/blob/master/autodiff.py
 eps = 1e-10
+
+# 前向传播：将梯度置0
+# Op.backward : 图遍历，计算梯度
 
 class Op:
     # dfs 实现拓扑排序
@@ -192,6 +195,15 @@ class SumAxis(Op):
     def back_calc_grad(self):
         if hasattr(self.nodes[0], "_d"):
             self.nodes[0]._d += np.sum(self._d, axis=self._sumaxis, keepdims=True)
+
+class Relu(Op):
+    def __init__(self, node):
+        self._v = np.maximum(node._v, 0)
+        self._d = 0.0
+        self.nodes = (node, )
+    def back_calc_grad(self):
+        if hasattr(self.nodes[0], "_d"):
+            self.nodes[0]._d += self._d * (self._v > 0).astype(np.float64)
 
 def OpInit2Func(OpClass):
     return lambda *args, **kwargs : OpClass(*args, **kwargs)

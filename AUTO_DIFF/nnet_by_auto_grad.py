@@ -22,11 +22,20 @@ def SoftMaxOp(z:Op):
     z_exp = Exp(z)
     return z_exp / SumAxis(z_exp, axis=1)
 
-# 前向传播将梯度全部置0
+# # 前向传播将梯度全部置0
+# @checkOpArgs
+# def ForwardOp(x:Op, w1:Op, w2:Op):
+#     z2 = x @ w1
+#     a2 = SigmoidOp(z2)
+#     z3 = a2 @ w2
+#     a3 = SoftMaxOp(z3)
+#     return a3
+
+# 使用RELU激活函数
 @checkOpArgs
 def ForwardOp(x:Op, w1:Op, w2:Op):
     z2 = x @ w1
-    a2 = SigmoidOp(z2)
+    a2 = Relu(z2)
     z3 = a2 @ w2
     a3 = SoftMaxOp(z3)
     return a3
@@ -114,7 +123,7 @@ def my_test():
     x, y = dobj.gen_rand_data(size=1000)
     tic = time.time()
     nobj = NNet()
-    nobj.fit_mbgd(x, y, lr=0.8, num_epochs=500, batch_size=32, hidden=50, nshow=1)
+    nobj.fit_mbgd(x, y, lr=0.1, num_epochs=1000, batch_size=32, hidden=50, nshow=1)
     plt.subplots_adjust(wspace=0.2)
     plt.subplot(121)
     plt.plot(nobj.loss_list, label = "LOSS")

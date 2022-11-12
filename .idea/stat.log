@@ -1,0 +1,14 @@
+{"ts":1668248310057,"action":"PROJECT_OPENED","tags":{"PROJECT_NAME":"ML"}}
+{"ts":1668248314720,"action":"FILE_OPENED","file":"/README.md","tags":{"FILE_LINE_OF_CODE":"40"}}
+{"ts":1668248327011,"action":"FILE_CLOSED","file":"/README.md","tags":{"FILE_LINE_OF_CODE":"40"}}
+{"ts":1668248327011,"action":"FILE_OPENED","file":"/README.en.md","tags":{"FILE_LINE_OF_CODE":"37"}}
+{"ts":1668248366199,"action":"FILE_CLOSED","file":"/README.en.md","tags":{"FILE_LINE_OF_CODE":"37"}}
+{"ts":1668248366200,"action":"FILE_OPENED","file":"/README.md","tags":{"FILE_LINE_OF_CODE":"40"}}
+{"ts":1668248388113,"action":"FILE_CLOSED","file":"/README.md","tags":{"FILE_LINE_OF_CODE":"40"}}
+{"ts":1668248388113,"action":"FILE_OPENED","file":"/README.en.md","tags":{"FILE_LINE_OF_CODE":"37"}}
+{"ts":1668248403034,"action":"FILE_OPENED","file":"/README.md","tags":{"FILE_LINE_OF_CODE":"40"}}
+{"ts":1668248467589,"action":"IDE_DEACTIVATED"}
+{"ts":1668248468175,"action":"IDE_ACTIVATED"}
+{"ts":1668248471977,"action":"IDE_DEACTIVATED"}
+{"ts":1668248472984,"action":"IDE_ACTIVATED"}
+{"ts":1668248506712,"action":"IDE_DEACTIVATED"}

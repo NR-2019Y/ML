@@ -14,6 +14,7 @@ def get_sklearnstyle_mnist_data():
     test_y  = dtest [:, 0]
     return train_x, test_x, train_y, test_y
 
+tic = time.time()
 train_x, test_x, train_y, test_y = get_sklearnstyle_mnist_data()
 print("用时", time.time() - tic)
 np.savez("_data/sklearnstyle_mnist_data", train_x, test_x, train_y, test_y)

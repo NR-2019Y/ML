@@ -67,6 +67,8 @@ class AdaBoostSolver(ClassifierBase):
             base_estimator_obj.fit(X, y, sample_weight=sample_weight)
             y_pred = base_estimator_obj.train_y_pred
             acc = base_estimator_obj.acc_score
+            del base_estimator_obj.train_y_pred
+            del base_estimator_obj.acc_score
             alpha = 0.5 * np.log(acc / (1 - acc))
             # print("alpha acc sig thr", alpha, acc, base_estimator_obj.sig, base_estimator_obj.threshold)
             print("alpha acc", alpha, acc)
@@ -101,6 +103,8 @@ class AdaBoostMulticlassSolver(ClassifierBase):
                 base_estimator_obj.fit(X, yhot[:, k], sample_weight=sample_weight[:, k])
                 y_pred = base_estimator_obj.train_y_pred
                 acc = base_estimator_obj.acc_score
+                del base_estimator_obj.train_y_pred
+                del base_estimator_obj.acc_score
                 alpha = 0.5 * np.log(acc / (1 - acc))
                 # print("alpha acc sig thr", alpha, acc, base_estimator_obj.sig, base_estimator_obj.threshold)
                 print(i, k, "alpha acc", alpha, acc)

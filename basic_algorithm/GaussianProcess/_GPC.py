@@ -20,7 +20,7 @@ class GPC(object):
         self.x_covinv_each = x_covinv_each
         self.x_covdet_each = x_covdet_each
         return self
-    def predict_proba(self, X):
+    def _get_p(self, X):
         n_samples = X.shape[0]
         n_labels = len(self.label_obj.classes_)
         proba = np.empty((n_samples, n_labels))
@@ -29,9 +29,12 @@ class GPC(object):
                 xi_scalej = X[i] - self.x_mean[j]
                 proba[i, j] = np.exp(-0.5 * xi_scalej @ self.x_covinv_each[j] @ xi_scalej)
         proba /= np.sqrt(self.x_covdet_each)
+        return proba
+    def predict_proba(self, X):
+        proba = self._get_p(X)
         proba = proba / proba.sum(axis=1, keepdims=True)
         return proba
     def predict(self, X):
-        return self.label_obj.inverse_transform(self.predict_proba(X).argmax(axis=1))
+        return self.label_obj.inverse_transform(self._get_p(X).argmax(axis=1))
     def score(self, X, y):
         return accuracy_score(y, self.predict(X))

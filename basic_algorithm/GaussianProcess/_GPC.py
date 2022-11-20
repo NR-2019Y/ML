@@ -6,7 +6,6 @@ from sklearn.metrics import accuracy_score
 
 class GPC(object):
     def fit(self, X, y):
-        # y取值 : 0, 1, 2, ...
         # n_samples, n_features = X.shape
         label_obj = LabelEncoder()
         y_labels = label_obj.fit_transform(y)

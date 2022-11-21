@@ -5,18 +5,22 @@ from sklearn.metrics import accuracy_score
 # 参考 https://zhuanlan.zhihu.com/p/99436309
 
 class GPC(object):
+    def __init__(self, *, lam=0.0):
+        self.lam = lam
     def fit(self, X, y):
-        # n_samples, n_features = X.shape
+        n_samples, n_features = X.shape
         label_obj = LabelEncoder()
         y_labels = label_obj.fit_transform(y)
         n_labels = len(label_obj.classes_)
         x_each = [X[y_labels == i, :] for i in range(n_labels)]
+        x_fq_each = np.array([xi.shape[0] for xi in x_each]) / n_samples
         x_mean_each = [xi.mean(axis=0) for xi in x_each]
-        x_cov_each = [np.cov(xi.T) for xi in x_each]
+        x_cov_each = [np.cov(xi.T) + self.lam * np.eye(n_features) for xi in x_each]
         x_covinv_each = [np.linalg.inv(xi_cov) for xi_cov in x_cov_each]
         x_covdet_each = np.array([np.linalg.det(xi_cov) for xi_cov in x_cov_each])
         self.label_obj = label_obj
         self.x_mean = x_mean_each
+        self.freq = x_fq_each
         self.x_covinv_each = x_covinv_each
         self.x_covdet_each = x_covdet_each
         return self
@@ -24,11 +28,15 @@ class GPC(object):
         n_samples = X.shape[0]
         n_labels = len(self.label_obj.classes_)
         proba = np.empty((n_samples, n_labels))
-        for i in range(n_samples):
-            for j in range(n_labels):
-                xi_scalej = X[i] - self.x_mean[j]
-                proba[i, j] = np.exp(-0.5 * xi_scalej @ self.x_covinv_each[j] @ xi_scalej)
+        # for i in range(n_samples):
+        #     for j in range(n_labels):
+        #         xi_scalej = X[i] - self.x_mean[j]
+        #         proba[i, j] = np.exp(-0.5 * xi_scalej @ self.x_covinv_each[j] @ xi_scalej)
+        for j in range(n_labels):
+            x_scalej = X - self.x_mean[j]
+            proba[:, j] = np.exp(-0.5 * np.sum((x_scalej @ self.x_covinv_each[j]) * x_scalej, axis=1))
         proba /= np.sqrt(self.x_covdet_each)
+        proba *= self.freq
         return proba
     def predict_proba(self, X):
         proba = self._get_p(X)

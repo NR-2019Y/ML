@@ -1,5 +1,6 @@
 import numpy as np
-from sklearn.preprocessing import OrdinalEncoder, LabelEncoder, OneHotEncoder, LabelBinarizer
+from sklearn.preprocessing import OrdinalEncoder, LabelEncoder, OneHotEncoder
+from sklearn.feature_selection import VarianceThreshold
 from sklearn.metrics import accuracy_score
 from abc import abstractmethod
 
@@ -9,8 +10,13 @@ from abc import abstractmethod
 
 class ClassifierBase(object):
     @abstractmethod
-    def predict(self, X):
+    def _predict_p(self, X):
         pass
+    def predict(self, X):
+        return self.label_encoder.inverse_transform(self._predict_p(X).argmax(axis=1))
+    def predict_proba(self, X):
+        pori = self._predict_p(X)
+        return pori / np.sum(pori, axis=1, keepdims=True)
     def score(self, X, y):
         return accuracy_score(y, self.predict(X))
 
@@ -61,12 +67,6 @@ class MyNaiveBayes1(ClassifierBase):
 
         return np.exp(log_pori)
 
-    def predict(self, X):
-        return self.label_encoder.inverse_transform(self._predict_p(X).argmax(axis=1))
-    def predict_proba(self, X):
-        pori = self._predict_p(X)
-        return pori / np.sum(pori, axis=1, keepdims=True)
-
 # 独热处理，代码更简洁，功能同MyNaiveBayes1
 class MyNaiveBayes2(ClassifierBase):
     def __init__(self, *, alpha=0.0):
@@ -75,11 +75,12 @@ class MyNaiveBayes2(ClassifierBase):
         # n_features, n_samples = X.shape
         self.feature_encoder = OneHotEncoder(sparse=False, categories='auto')
         X = self.feature_encoder.fit_transform(X)
-        self.label_encoder = LabelBinarizer()
-        y = self.label_encoder.fit_transform(y).astype(np.float64)
-        assert len(self.label_encoder.classes_) > 1
-        if y.shape[1] == 1:
-            y = np.c_[1 - y, y]
+
+        self.label_encoder = LabelEncoder()
+        y = self.label_encoder.fit_transform(y)
+        n_classes = len(self.label_encoder.classes_)
+        y = np.eye(n_classes)[y]
+
         feature_category_fqcalc = np.dot(y.T, X)
         feature_category_fqcalc += self.alpha
         n_feature_index = np.r_[0, np.cumsum( [len(v) for v in self.feature_encoder.categories_] )]
@@ -96,25 +97,17 @@ class MyNaiveBayes2(ClassifierBase):
         X = self.feature_encoder.transform(X)
         log_pori = np.dot(X, self.log_feature_category_freq.T) + self.log_class_prior
         return np.exp(log_pori)
-    def predict(self, X):
-        return self.label_encoder.inverse_transform(self._predict_p(X).argmax(axis=1))
-    def predict_proba(self, X):
-        pori = self._predict_p(X)
-        return pori / np.sum(pori, axis=1, keepdims=True)
 
 # 多项分布
 class MyMultinomialNaiveBayes(ClassifierBase):
     def __init__(self, *, alpha=0.0):
         self.alpha = alpha
     def fit(self, X : np.ndarray, y : np.ndarray):
-        self.label_encoder = LabelBinarizer()
+        self.label_encoder = LabelEncoder()
+        y = self.label_encoder.fit_transform(y)
+        n_classes = len(self.label_encoder.classes_)
+        y = np.eye(n_classes)[y]
 
-        y = self.label_encoder.fit_transform(y).astype(np.float64)
-        assert len(self.label_encoder.classes_) > 1
-        if y.shape[1] == 1:
-            y = np.c_[1 - y, y]
-
-        n_classes = y.shape[1]
         class_count = np.sum(y, axis=0) + self.alpha
         self.log_class_prior = np.log( class_count / (len(y) + self.alpha * n_classes) )
 
@@ -126,11 +119,6 @@ class MyMultinomialNaiveBayes(ClassifierBase):
     def _predict_p(self, X):
         log_pori = np.dot(X, self.log_feature_prob.T) + self.log_class_prior
         return np.exp(log_pori)
-    def predict(self, X):
-        return self.label_encoder.inverse_transform( self._predict_p(X).argmax(axis=1) )
-    def predict_proba(self, X):
-        pori = self._predict_p(X)
-        return pori / np.sum(pori, axis=1, keepdims=True)
 
 # 高斯分布
 class MyGaussianNaiveBayes(ClassifierBase):
@@ -158,8 +146,47 @@ class MyGaussianNaiveBayes(ClassifierBase):
             log_feature_proba = - 0.5 * np.sum((X - curr_mu)**2 / curr_var, axis=1) - 0.5 * np.sum(np.log(curr_var))
             log_pori[:, i] += log_feature_proba
         return np.exp(log_pori)
-    def predict(self, X):
-        return self.label_encoder.inverse_transform( self._predict_p(X).argmax(axis=1) )
-    def predict_proba(self, X):
-        pori = self._predict_p(X)
-        return pori / np.sum(pori, axis=1, keepdims=True)
+
+# 伯努利分布
+class MyBernoulliNaiveBayes(ClassifierBase):
+    def __init__(self, *, alpha=0.0, threshold=0.0):
+        self.alpha = alpha
+        self.threshold = 0.0
+    def fit(self, X, y):
+        self.feature_encoder = VarianceThreshold()
+        self.feature_encoder.fit(X)
+
+        X = (X > self.threshold).astype(np.float64)
+        X = self.feature_encoder.transform(X)
+
+        self.label_encoder = LabelEncoder()
+        y = self.label_encoder.fit_transform(y)
+        n_classes = len(self.label_encoder.classes_)
+        y = np.eye(n_classes)[y]
+
+        class_count = np.sum(y, axis=0) + self.alpha
+        self.log_class_prior = np.log( class_count / (len(y) + self.alpha * n_classes) )  # (n_classes, )
+
+        feature_count = np.dot(y.T, X) + self.alpha
+        feature_proba = feature_count / (class_count.reshape((-1, 1)) + 2 * self.alpha)
+        log_feature_proba = np.log(feature_proba) # (n_classes, n_features)
+        log_neg_feature_proba = np.log(1 - feature_proba)
+
+        # log(p) - log(1 - p)
+        self.log_feature_probadiff = log_feature_proba - log_neg_feature_proba
+        self.log_neg_feature_proba = log_neg_feature_proba
+
+        return self
+    def _predict_p(self, X):
+        X = (X > self.threshold).astype(np.float64)
+        X = self.feature_encoder.transform(X)
+        # x * log(p) + (1 - x) * log(1 - p)
+        # x * (log(p) - log(1 - p)) + ones * log(1 - p)
+        # X : (n_samples, n_features)
+        # self.log_feature_probadiff, self.log_neg_feature_proba : (n_classes, n_features)
+        log_pori = (
+                self.log_class_prior +                       # (n_classes, )
+                np.sum(self.log_neg_feature_proba, axis=1) + # (n_classes, )
+                np.dot(X, self.log_feature_probadiff.T)      # (n_samples, n_classes)
+        )
+        return np.exp(log_pori)

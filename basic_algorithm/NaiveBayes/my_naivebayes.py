@@ -65,7 +65,8 @@ class MyNaiveBayes1(ClassifierBase):
         for i in range(n_samples):
             for curr_x, curr_fq in zip(X[i], self.log_feature_category_freq):
                 log_pori[i] += curr_fq[:, curr_x]
-
+        # 避免溢出
+        log_pori /= np.max(np.abs(log_pori), axis=1, keepdims=True)
         return np.exp(log_pori)
 
 # 独热处理，代码更简洁，功能同MyNaiveBayes1
@@ -97,6 +98,8 @@ class MyNaiveBayes2(ClassifierBase):
     def _predict_p(self, X):
         X = self.feature_encoder.transform(X)
         log_pori = np.dot(X, self.log_feature_category_freq.T) + self.log_class_prior
+        # 避免溢出
+        log_pori /= np.max(np.abs(log_pori), axis=1, keepdims=True)
         return np.exp(log_pori)
 
 # 多项分布
@@ -119,6 +122,8 @@ class MyMultinomialNaiveBayes(ClassifierBase):
         return self
     def _predict_p(self, X):
         log_pori = np.dot(X, self.log_feature_prob.T) + self.log_class_prior
+        # 避免溢出
+        log_pori /= np.max(np.abs(log_pori), axis=1, keepdims=True)
         return np.exp(log_pori)
 
 # 高斯分布
@@ -149,7 +154,6 @@ class MyGaussianNaiveBayes(ClassifierBase):
             log_pori[:, i] += log_feature_proba
         # 避免溢出
         log_pori /= np.max(np.abs(log_pori), axis=1, keepdims=True)
-        # print(log_pori.max(axis=1).min(), log_pori.max(axis=1).max())
         return np.exp(log_pori)
 
 # 伯努利分布
@@ -194,4 +198,6 @@ class MyBernoulliNaiveBayes(ClassifierBase):
                 np.sum(self.log_neg_feature_proba, axis=1) + # (n_classes, )
                 np.dot(X, self.log_feature_probadiff.T)      # (n_samples, n_classes)
         )
+        # 避免溢出
+        log_pori /= np.max(np.abs(log_pori), axis=1, keepdims=True)
         return np.exp(log_pori)

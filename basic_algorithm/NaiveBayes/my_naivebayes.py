@@ -2,6 +2,7 @@ import numpy as np
 from sklearn.preprocessing import OrdinalEncoder, LabelEncoder, OneHotEncoder
 from sklearn.feature_selection import VarianceThreshold
 from sklearn.metrics import accuracy_score
+from sklearn.utils.extmath import safe_sparse_dot
 from abc import abstractmethod
 
 # 参考
@@ -106,7 +107,7 @@ class MyMultinomialNaiveBayes(ClassifierBase):
         self.label_encoder = LabelEncoder()
         y = self.label_encoder.fit_transform(y)
         n_classes = len(self.label_encoder.classes_)
-        y = np.eye(n_classes)[y]
+        y = np.eye(n_classes, dtype=np.float64)[y]
 
         class_count = np.sum(y, axis=0) + self.alpha
         self.log_class_prior = np.log( class_count / (len(y) + self.alpha * n_classes) )

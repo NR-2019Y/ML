@@ -134,7 +134,8 @@ class MyGaussianNaiveBayes(ClassifierBase):
             imask = y == i
             var_mat[i] = np.var(X[imask, :], axis=0)
             mu_mat[i]  = np.mean(X[imask, :], axis=0)
-        self.var_mat = var_mat
+        eps = 1e-10
+        self.var_mat = var_mat + eps
         self.mu_mat = mu_mat
         self.log_class_prior = np.log(np.bincount(y) / len(y))
         return self
@@ -146,6 +147,9 @@ class MyGaussianNaiveBayes(ClassifierBase):
             curr_var, curr_mu = self.var_mat[i], self.mu_mat[i]
             log_feature_proba = - 0.5 * np.sum((X - curr_mu)**2 / curr_var, axis=1) - 0.5 * np.sum(np.log(curr_var))
             log_pori[:, i] += log_feature_proba
+        # 避免溢出
+        log_pori /= np.max(np.abs(log_pori), axis=1, keepdims=True)
+        # print(log_pori.max(axis=1).min(), log_pori.max(axis=1).max())
         return np.exp(log_pori)
 
 # 伯努利分布

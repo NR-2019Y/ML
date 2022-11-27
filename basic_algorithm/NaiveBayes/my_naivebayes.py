@@ -89,7 +89,7 @@ class MyNaiveBayes2(ClassifierBase):
             feature_category_fqcalc[:, ifirst:ilast] /= np.sum(
                 feature_category_fqcalc[:, ifirst:ilast], axis=1, keepdims=True
             )
-        n_classes = y.shape[1]
+
         class_count = np.sum(y, axis=0) + self.alpha
         self.log_class_prior = np.log(class_count / (len(y) + self.alpha * n_classes))
         self.log_feature_category_freq = np.log(feature_category_fqcalc)

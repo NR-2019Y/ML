@@ -2,7 +2,6 @@ import numpy as np
 from sklearn.preprocessing import OrdinalEncoder, LabelEncoder, OneHotEncoder
 from sklearn.feature_selection import VarianceThreshold
 from sklearn.metrics import accuracy_score
-from sklearn.utils.extmath import safe_sparse_dot
 from abc import abstractmethod
 
 # 参考

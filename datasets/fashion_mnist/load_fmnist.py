@@ -23,6 +23,7 @@ def load_fashion_mnist():
     with gzip.open(test_y_file, 'rb') as f:
         test_y = np.frombuffer(f.read(), dtype=np.uint8, offset=8)
     np.savez(cachefile, train_x, test_x, train_y, test_y)
+    return train_x, test_x, train_y, test_y
 
 if __name__ == '__main__':
     load_fashion_mnist()

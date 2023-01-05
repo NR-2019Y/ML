@@ -7,13 +7,14 @@ import matplotlib.pyplot as plt
 # https://github.com/dlsys-course/assignment1-2018/blob/master/autodiff.py
 eps = 1e-10
 
+
 # 前向传播：将梯度置0
 # Op.backward : 图遍历，计算梯度
 
 class Op:
     # dfs 实现拓扑排序
     def _dfs(self):
-        ord_nodes = [] # 保存拓扑排序结果
+        ord_nodes = []  # 保存拓扑排序结果
         visited = set()
         curr_path = []
         q = [(0, self)]
@@ -33,6 +34,7 @@ class Op:
             ord_nodes.append(curr_path.pop())
         ord_nodes.reverse()
         self.ord_nodes = ord_nodes
+
     def backward(self):
         assert hasattr(self, "_d")
         self._d = 1.0
@@ -41,17 +43,20 @@ class Op:
             if hasattr(node, "nodes"):
                 node.back_calc_grad()
 
+
 class C(Op):
     def __init__(self, val, requires_grad=False):
         self._v = val
         if requires_grad:
             self._d = 0.0
 
+
 class Add(Op):
     def __init__(self, node1, node2):
         self._v = node1._v + node2._v
         self._d = 0.0
         self.nodes = (node1, node2)
+
     def back_calc_grad(self):
         node1, node2 = self.nodes
         if hasattr(node1, "_d"):
@@ -59,11 +64,13 @@ class Add(Op):
         if hasattr(node2, "_d"):
             node2._d += self._d
 
+
 class Sub(Op):
     def __init__(self, node1, node2):
         self._v = node1._v - node2._v
         self._d = 0.0
         self.nodes = (node1, node2)
+
     def back_calc_grad(self):
         node1, node2 = self.nodes
         if hasattr(node1, "_d"):
@@ -71,20 +78,24 @@ class Sub(Op):
         if hasattr(node2, "_d"):
             node2._d -= self._d
 
+
 class Neg(Op):
     def __init__(self, node):
         self._v = -node._v
         self._d = 0.0
-        self.nodes = (node, )
+        self.nodes = (node,)
+
     def back_calc_grad(self):
         if hasattr(self.nodes[0], "_d"):
             self.nodes[0]._d -= self._d
+
 
 class Mul(Op):
     def __init__(self, node1, node2):
         self._v = node1._v * node2._v
         self._d = 0.0
         self.nodes = (node1, node2)
+
     def back_calc_grad(self):
         node1, node2 = self.nodes
         if hasattr(node1, "_d"):
@@ -92,11 +103,13 @@ class Mul(Op):
         if hasattr(node2, "_d"):
             node2._d += self._d * node1._v
 
+
 class TrueDiv(Op):
     def __init__(self, node1, node2):
         self._v = node1._v / node2._v
         self._d = 0.0
         self.nodes = (node1, node2)
+
     def back_calc_grad(self):
         # n3 = n1 / n2
         # dn3 / dn1 = 1 / n2
@@ -107,11 +120,13 @@ class TrueDiv(Op):
         if hasattr(node2, "_d"):
             node2._d -= self._d * node1._v / (node2._v ** 2 + eps)
 
+
 class MatMul(Op):
     def __init__(self, node1, node2):
         self._v = np.dot(node1._v, node2._v)
         self._d = 0.0
         self.nodes = (node1, node2)
+
     def back_calc_grad(self):
         node1, node2 = self.nodes
         if hasattr(node1, "_d"):
@@ -119,42 +134,50 @@ class MatMul(Op):
         if hasattr(node2, "_d"):
             node2._d += np.dot(node1._v.T, self._d)
 
+
 class Sin(Op):
     def __init__(self, node):
         self._v = np.sin(node._v)
         self._d = 0.0
-        self.nodes = (node, )
+        self.nodes = (node,)
+
     def back_calc_grad(self):
         # n2 = sin(n1)
         # dn2 / dn1 = cos(n1)
         if hasattr(self.nodes[0], "_d"):
             self.nodes[0]._d += self._d * np.cos(self.nodes[0]._v)
 
+
 class Cos(Op):
     def __init__(self, node):
         self._v = np.cos(node._v)
         self._d = 0.0
-        self.nodes = (node, )
+        self.nodes = (node,)
+
     def back_calc_grad(self):
         if hasattr(self.nodes[0], "_d"):
             self.nodes[0]._d -= self._d * np.sin(self.nodes[0]._v)
+
 
 class Exp(Op):
     def __init__(self, node):
         self._v = np.exp(node._v)
         self._d = 0.0
-        self.nodes = (node, )
+        self.nodes = (node,)
+
     def back_calc_grad(self):
         # n2 = exp(n1)
         # dn2 / dn1 = n2
         if hasattr(self.nodes[0], "_d"):
             self.nodes[0]._d += self._d * self._v
 
+
 class Pow(Op):
     def __init__(self, node1, node2):
         self._v = node1._v ** node2._v
         self._d = 0.0
         self.nodes = (node1, node2)
+
     def back_calc_grad(self):
         node1, node2 = self.nodes
         # n3 = n1 ** n2
@@ -166,24 +189,29 @@ class Pow(Op):
         if hasattr(node2, "_d"):
             node2._d += self._d * self._v * np.log(node1._v)
 
+
 class Log(Op):
     def __init__(self, node, base=np.e):
         self._g = 1.0 / np.log(base)
         self._v = self._g * np.log(node._v)
         self._d = 0.0
-        self.nodes = (node, )
+        self.nodes = (node,)
+
     def back_calc_grad(self):
         if hasattr(self.nodes[0], "_d"):
             self.nodes[0]._d += self._d * self._g / self.nodes[0]._v
+
 
 class Sum(Op):
     def __init__(self, node):
         self._v = np.sum(node._v)
         self._d = 0.0
-        self.nodes = (node, )
+        self.nodes = (node,)
+
     def back_calc_grad(self):
         if hasattr(self.nodes[0], "_d"):
             self.nodes[0]._d += self._d * np.ones_like(self.nodes[0]._v)
+
 
 class SumAxis(Op):
     def __init__(self, node, axis=1):
@@ -191,22 +219,109 @@ class SumAxis(Op):
         self._v = np.sum(node._v, axis=axis, keepdims=True)
         self._d = 0.0
         self._sumaxis = axis
-        self.nodes = (node, )
+        self.nodes = (node,)
+
     def back_calc_grad(self):
         if hasattr(self.nodes[0], "_d"):
             self.nodes[0]._d += np.sum(self._d, axis=self._sumaxis, keepdims=True)
 
+
 class Relu(Op):
     def __init__(self, node):
-        self._v = np.maximum(node._v, 0)
+        self._v = np.maximum(node._v, 0.0)
         self._d = 0.0
-        self.nodes = (node, )
+        self.nodes = (node,)
+
     def back_calc_grad(self):
         if hasattr(self.nodes[0], "_d"):
-            self.nodes[0]._d += self._d * (self._v > 0).astype(np.float64)
+            self.nodes[0]._d += self._d * (self._v > 0).astype(np.float32)
+
+
+class Sigmoid(Op):
+    def __init__(self, node):
+        self._v = 1.0 / (1.0 + np.exp(node._v))
+        self._d = 0.0
+        self.nodes = (node,)
+
+    def back_calc_grad(self):
+        if hasattr(self.nodes[0], "_d"):
+            self.nodes[0]._d += self._d * self._v * (1 - self._v)
+
+
+class Tanh(Op):
+    def __init__(self, node):
+        self._v = np.tanh(node._v)
+        self._d = 0.0
+        self.nodes = (node,)
+
+    def back_calc_grad(self):
+        if hasattr(self.nodes[0], "_d"):
+            self.nodes[0]._d += self._d * (1 - np.square(self._v))
+
+
+def np_softmax(z):
+    z_exp_sc = np.exp(z - np.max(z, axis=1, keepdims=True))
+    return z_exp_sc / np.sum(z_exp_sc, axis=1, keepdims=True)
+
+
+class Softmax(Op):
+    def __init__(self, node):
+        self._v = np_softmax(node._v)
+        self._d = 0.0
+        self.nodes = (node,)
+
+    def back_calc_grad(self):
+        if hasattr(self.nodes[0], "_d"):
+            self.nodes[0]._d += self._d * self._v - np.sum(self._d * np.square(self._v), axis=1, keepdims=True)
+
+
+# class CrossEntropyLossLayer(Op):
+#     def __init__(self, node_logits, node_y):
+#         self.batch_size, self.n_classes = node_logits._v.shape
+#         proba = np_softmax(node_logits._v)
+#         self._proba = proba
+#         self._v = -np.mean(np.log(proba[range(self.batch_size), node_y._v] + eps))
+#         self._d = 0.0
+#         self.nodes = (node_logits, node_y)
+#
+#     def back_calc_grad(self):
+#         node_logits, node_y = self.nodes
+#         assert not hasattr(node_y, "_d")
+#         node_logits._d += (1.0 / self.batch_size) * self._d * (self._proba - np.eye(self.n_classes, dtype=np.float32)[node_y._v])
+
+class CrossEntropyLossLayer(Op):
+    def __init__(self, node_logits, node_y):
+        self.batch_size, self.n_classes = node_logits._v.shape
+        proba = np_softmax(node_logits._v)
+        self._proba = proba
+        self._v = -(1.0 / self.batch_size) * np.sum(node_y._v * np.log(proba + eps))
+        self._d = 0.0
+        self.nodes = (node_logits, node_y)
+
+    def back_calc_grad(self):
+        node_logits, node_y = self.nodes
+        assert not hasattr(node_y, "_d")
+        node_logits._d += (1.0 / self.batch_size) * self._d * (self._proba - node_y._v)
+
+
+class LinearLayer(Op):
+    def __init__(self, node_x, node_w, node_b):
+        self._v = np.dot(node_x._v, node_w._v) + node_b._v
+        self._d = 0.0
+        self.nodes = (node_x, node_w, node_b)
+
+    def back_calc_grad(self):
+        node_x, node_w, node_b = self.nodes
+        if hasattr(node_x, "_d"):
+            node_x._d += np.dot(self._d, node_w._v.T)
+        assert hasattr(node_w, "_d") and hasattr(node_b, "_d")
+        node_w._d += np.dot(node_x._v.T, self._d)
+        node_b._d += np.sum(self._d, axis=0)
+
 
 def OpInit2Func(OpClass):
-    return lambda *args, **kwargs : OpClass(*args, **kwargs)
+    return lambda *args, **kwargs: OpClass(*args, **kwargs)
+
 
 Op.__add__ = OpInit2Func(Add)
 Op.__sub__ = OpInit2Func(Sub)
@@ -215,6 +330,7 @@ Op.__mul__ = OpInit2Func(Mul)
 Op.__truediv__ = OpInit2Func(TrueDiv)
 Op.__matmul__ = OpInit2Func(MatMul)
 Op.__pow__ = OpInit2Func(Pow)
+
 
 # x1 = C(2.0, requires_grad=True)
 # x2 = C(3.0, requires_grad=True)
@@ -238,6 +354,7 @@ def my_test_softmax():
     L = Sum(y * Log(a))
     L.backward()
     print((y._v - a._v) / z._d)
+
 
 if __name__ == '__main__':
     my_test_softmax()

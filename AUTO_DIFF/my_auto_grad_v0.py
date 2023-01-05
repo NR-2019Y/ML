@@ -1,4 +1,5 @@
 import numpy as np
+import abc
 import matplotlib.pyplot as plt
 
 # 实现反向自动微分
@@ -42,6 +43,10 @@ class Op:
         for node in self.ord_nodes:
             if hasattr(node, "nodes"):
                 node.back_calc_grad()
+
+    @abc.abstractmethod
+    def back_calc_grad(self):
+        pass
 
 
 class C(Op):
@@ -256,7 +261,7 @@ class Tanh(Op):
 
     def back_calc_grad(self):
         if hasattr(self.nodes[0], "_d"):
-            self.nodes[0]._d += self._d * (1 - np.square(self._v))
+            self.nodes[0]._d += self._d * (1.0 - np.square(self._v))
 
 
 def np_softmax(z):
@@ -275,33 +280,35 @@ class Softmax(Op):
             self.nodes[0]._d += self._d * self._v - np.sum(self._d * np.square(self._v), axis=1, keepdims=True)
 
 
-# class CrossEntropyLossLayer(Op):
-#     def __init__(self, node_logits, node_y):
-#         self.batch_size, self.n_classes = node_logits._v.shape
-#         proba = np_softmax(node_logits._v)
-#         self._proba = proba
-#         self._v = -np.mean(np.log(proba[range(self.batch_size), node_y._v] + eps))
-#         self._d = 0.0
-#         self.nodes = (node_logits, node_y)
-#
-#     def back_calc_grad(self):
-#         node_logits, node_y = self.nodes
-#         assert not hasattr(node_y, "_d")
-#         node_logits._d += (1.0 / self.batch_size) * self._d * (self._proba - np.eye(self.n_classes, dtype=np.float32)[node_y._v])
-
 class CrossEntropyLossLayer(Op):
     def __init__(self, node_logits, node_y):
         self.batch_size, self.n_classes = node_logits._v.shape
         proba = np_softmax(node_logits._v)
         self._proba = proba
-        self._v = -(1.0 / self.batch_size) * np.sum(node_y._v * np.log(proba + eps))
+        self._v = -np.mean(np.log(proba[range(self.batch_size), node_y._v] + eps))
         self._d = 0.0
         self.nodes = (node_logits, node_y)
 
     def back_calc_grad(self):
         node_logits, node_y = self.nodes
         assert not hasattr(node_y, "_d")
-        node_logits._d += (1.0 / self.batch_size) * self._d * (self._proba - node_y._v)
+        node_logits._d += (1.0 / self.batch_size) * self._d * (
+                self._proba - np.eye(self.n_classes, dtype=np.float32)[node_y._v])
+
+
+# class CrossEntropyLossLayer(Op):
+#     def __init__(self, node_logits, node_y):
+#         self.batch_size, self.n_classes = node_logits._v.shape
+#         proba = np_softmax(node_logits._v)
+#         self._proba = proba
+#         self._v = -(1.0 / self.batch_size) * np.sum(node_y._v * np.log(proba + eps))
+#         self._d = 0.0
+#         self.nodes = (node_logits, node_y)
+#
+#     def back_calc_grad(self):
+#         node_logits, node_y = self.nodes
+#         assert not hasattr(node_y, "_d")
+#         node_logits._d += (1.0 / self.batch_size) * self._d * (self._proba - node_y._v)
 
 
 class LinearLayer(Op):
@@ -317,6 +324,58 @@ class LinearLayer(Op):
         assert hasattr(node_w, "_d") and hasattr(node_b, "_d")
         node_w._d += np.dot(node_x._v.T, self._d)
         node_b._d += np.sum(self._d, axis=0)
+
+
+class AddBias2D(Op):
+    def __init__(self, node_ori, node_b):
+        self._v = node_ori._v + node_b._v
+        self._d = 0.0
+        self.nodes = (node_ori, node_b)
+
+    def back_calc_grad(self):
+        node_ori, node_b = self.nodes
+        if hasattr(node_ori, "_d"):
+            node_ori._d += self._d
+        if hasattr(node_b, "_d"):
+            node_b._d += np.sum(self._d, axis=0)
+
+
+class ListToTensor(Op):
+    def __init__(self, all_nodes):
+        self._v = np.array([node._v for node in all_nodes])
+        self._d = 0.0
+        self.nodes = tuple(all_nodes)
+
+    def back_calc_grad(self):
+        for node, grad in zip(self.nodes, self._d):
+            if hasattr(node, "_d"):
+                node._d += grad
+
+
+class Transpose(Op):
+    def __init__(self, node, axes):
+        self._v = np.transpose(node._v, axes)
+        self._d = 0.0
+        self.axes_arg = axes
+        self.nodes = (node,)
+
+    def back_calc_grad(self):
+        if hasattr(self.nodes[0], "_d"):
+            self.nodes[0]._d += np.transpose(self._d, self.axes_arg)
+
+
+class Reshape(Op):
+    def __init__(self, node, new_shape):
+        self._ori_shape = node._v.shape
+        # print("self._ori_shape", self._ori_shape)
+        self._v = np.reshape(node._v, new_shape)
+        # print("self._v.shape", self._v.shape)
+        self._d = 0.0
+        self.nodes = (node,)
+
+    def back_calc_grad(self):
+        if hasattr(self.nodes[0], "_d"):
+            self.nodes[0]._d += np.reshape(self._d, self._ori_shape)
 
 
 def OpInit2Func(OpClass):

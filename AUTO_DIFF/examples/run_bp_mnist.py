@@ -2,25 +2,7 @@ import numpy as np
 
 from datasets.mnist import load_mnist
 from AUTO_DIFF import my_auto_grad_v0 as op
-
-
-class DataIter(object):
-    def __init__(self, X, y, *, batch_size):
-        assert len(X) == len(y)
-        self.X = X
-        self.y = y
-        self.batch_size = batch_size
-
-    def __len__(self):
-        return len(self.y)
-
-    def __iter__(self):
-        size = len(self)
-        rand_perm = np.random.permutation(size)
-        # print(rand_perm)
-        for i in range(0, size, self.batch_size):
-            idx = rand_perm[i: i + self.batch_size]
-            yield self.X[idx], self.y[idx]
+from AUTO_DIFF import data_iter
 
 
 class NNET(object):
@@ -52,18 +34,16 @@ def loss_func(logits, y):
     return op.CrossEntropyLossLayer(logits, y)
 
 
-def calc_acc(logits: np.ndarray, yori: np.ndarray):
-    return np.mean(logits.argmax(axis=1) == yori)
+def calc_acc(logits: np.ndarray, y: np.ndarray):
+    return np.mean(logits.argmax(axis=1) == y)
 
 
-train_x, test_x, train_y_ori, test_y_ori = load_mnist.load_mnist()
-train_y = np.eye(10, dtype=np.float32)[train_y_ori]
-test_y = np.eye(10, dtype=np.float32)[test_y_ori]
+train_x, test_x, train_y, test_y = load_mnist.load_mnist()
 
-n_epochs = 5000
+n_epochs = 1000
 batch_size = 64
 learning_rate = 0.01
-train_iter = DataIter(train_x, train_y, batch_size=batch_size)
+train_iter = data_iter.DataIter(train_x, train_y, batch_size=batch_size)
 
 c_train_x, c_test_x, c_train_y, c_test_y = map(op.C, (train_x, test_x, train_y, test_y))
 net = NNET(n_features=784, n_hiddens=128, n_classes=10)
@@ -79,6 +59,6 @@ for epoch in range(1, n_epochs + 1):
     c_train_logits = net(c_train_x)
     c_test_logits = net(c_test_x)
     train_loss = loss_func(c_train_logits, c_train_y)._v
-    train_acc = calc_acc(c_train_logits._v, train_y_ori)
-    test_acc = calc_acc(c_test_logits._v, test_y_ori)
+    train_acc = calc_acc(c_train_logits._v, train_y)
+    test_acc = calc_acc(c_test_logits._v, test_y)
     print(f"epoch:{epoch}\tLOSS:{train_loss}\tTRAIN_ACC:{train_acc}\tTEST_ACC:{test_acc}")

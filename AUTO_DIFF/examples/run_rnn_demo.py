@@ -1,6 +1,6 @@
 import numpy as np
 from AUTO_DIFF import my_auto_grad_v0 as op
-
+from AUTO_DIFF import optimizer
 
 class RNN(object):
     def __init__(self, dic_len, n_hiddens):
@@ -38,11 +38,11 @@ class RNN(object):
         logits = op.Transpose(logits_t, [1, 0, 2])  # (batch_size, seq_len, dic_len)
         return logits
 
-    def update(self, *, learning_rate):
-        # for nm, param in zip(("W_xh", "W_hh", "b_h", "W_q", "b_q"), self.params):
-        #     print(nm, param._v.shape, param._d.shape)
-        for param in self.params:
-            param._v -= learning_rate * param._d
+    # def update(self, *, learning_rate):
+    #     # for nm, param in zip(("W_xh", "W_hh", "b_h", "W_q", "b_q"), self.params):
+    #     #     print(nm, param._v.shape, param._d.shape)
+    #     for param in self.params:
+    #         param._v -= learning_rate * param._d
 
 
 def loss_func(logits: op.Op, y: np.ndarray):
@@ -65,11 +65,17 @@ train_x = np.array([v[:-1] for v in s_ori_index])
 train_y = np.array([v[1:] for v in s_ori_index])
 
 rnn = RNN(dic_len=len(index2word), n_hiddens=32)
-for i in range(1000):
+# trainer =  optimizer.AdaGrad(learning_rate=0.03, trainable_nodes=rnn.params)
+# trainer =  optimizer.Momentum(learning_rate=3.0, trainable_nodes=rnn.params)
+# trainer =  optimizer.Rmsprop(learning_rate=0.03, trainable_nodes=rnn.params)
+trainer = optimizer.Adam(learning_rate=0.03, trainable_nodes=rnn.params)
+for i in range(100):
     logits = rnn(train_x)
     loss = loss_func(logits, train_y)
     loss.backward()
-    rnn.update(learning_rate=0.1)
+    # rnn.update(learning_rate=0.1)
+    # print([e._d for e in rnn.params])
+    trainer()
     train_y_pred = logits._v.argmax(axis=-1)
     train_acc = calc_acc(train_y_pred, train_y)
     print(f"{i} LOSS:{loss._v} TRAIN_ACC:{train_acc}")

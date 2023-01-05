@@ -239,7 +239,7 @@ class Relu(Op):
 
     def back_calc_grad(self):
         if hasattr(self.nodes[0], "_d"):
-            self.nodes[0]._d += self._d * (self._v > 0).astype(np.float32)
+            self.nodes[0]._d += self._d * (self._v > 0).astype(np.float64)
 
 
 class Sigmoid(Op):
@@ -293,7 +293,7 @@ class CrossEntropyLossLayer(Op):
         node_logits, node_y = self.nodes
         assert not hasattr(node_y, "_d")
         node_logits._d += (1.0 / self.batch_size) * self._d * (
-                self._proba - np.eye(self.n_classes, dtype=np.float32)[node_y._v])
+                self._proba - np.eye(self.n_classes, dtype=np.float64)[node_y._v])
 
 
 # class CrossEntropyLossLayer(Op):

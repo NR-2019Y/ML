@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
+import time
 
 
 def gen_rand_w_and_b(n_inputs, n_hiddens):
@@ -40,7 +41,7 @@ def lstm(X, *, dic_len, n_hiddens):
         i = i + 1
         return i, hi, ci, Li
 
-    i = tf.constant(0, )
+    i = tf.constant(0, dtype=np.int32)
     H = tf.zeros([batch_size, n_hiddens], dtype=tf.float32)
     C = tf.zeros([batch_size, n_hiddens], dtype=tf.float32)
     logits_t = tf.zeros([0, batch_size, n_classes])
@@ -84,6 +85,7 @@ grads = tf.gradients(cost_, params)
 learning_rate = 0.3
 trainer = [tf.assign_sub(param, learning_rate * grad) for grad, param in zip(grads, params)]
 
+tic = time.time()
 cost_list, acc_list = [], []
 with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
@@ -95,6 +97,7 @@ with tf.Session() as sess:
         acc_list.append(acc_val)
         print(f"{i} COST:{cost_val} TRAIN_ACC:{acc_val}")
         print("训练集预测", [''.join(index2word[i] for i in yi) for yi in train_y_pred])
+print("运行时间", time.time() - tic)
 
 plt.subplot(121)
 plt.plot(cost_list, label="COST")

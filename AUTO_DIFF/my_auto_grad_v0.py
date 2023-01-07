@@ -1,5 +1,7 @@
 import numpy as np
 import abc
+import numbers
+import typing
 import matplotlib.pyplot as plt
 
 # 实现反向自动微分
@@ -352,16 +354,23 @@ class ListToTensor(Op):
                 node._d += grad
 
 
+def inv_perm(perm: typing.Union[typing.List, typing.Tuple]):
+    new_perm = [0] * len(perm)
+    for idx1, idx2 in enumerate(perm):
+        new_perm[idx2] = idx1
+    return new_perm
+
+
 class Transpose(Op):
     def __init__(self, node, axes):
         self._v = np.transpose(node._v, axes)
         self._d = 0.0
-        self.axes_arg = axes
+        self.inv_axes_arg = None if axes is None else inv_perm(axes)
         self.nodes = (node,)
 
     def back_calc_grad(self):
         if hasattr(self.nodes[0], "_d"):
-            self.nodes[0]._d += np.transpose(self._d, self.axes_arg)
+            self.nodes[0]._d += np.transpose(self._d, self.inv_axes_arg)
 
 
 class Reshape(Op):

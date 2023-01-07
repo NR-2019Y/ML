@@ -1,7 +1,7 @@
 import numpy as np
 
 from . import my_auto_grad_v0 as op
-from typing import Tuple
+from typing import Sequence
 
 eps = 1e-10
 
@@ -12,7 +12,7 @@ class VariableNumber(object):
 
 
 class SGD:
-    def __init__(self, *, learning_rate, trainable_nodes: Tuple[op.Op]):
+    def __init__(self, *, learning_rate, trainable_nodes: Sequence[op.Op]):
         self.trainable_nodes = trainable_nodes
         self.learning_rate = learning_rate
 
@@ -22,7 +22,7 @@ class SGD:
 
 
 class AdaGrad:
-    def __init__(self, *, learning_rate, trainable_nodes: Tuple[op.Op]):
+    def __init__(self, *, learning_rate, trainable_nodes: Sequence[op.Op]):
         self.trainable_nodes = trainable_nodes
         self.learning_rate = learning_rate
         self.s_init_list = [np.zeros_like(node._v) for node in trainable_nodes]
@@ -39,7 +39,7 @@ def to_zeros_array(arr):
 
 
 class Momentum:
-    def __init__(self, *, learning_rate, beta=0.9, trainable_nodes: Tuple[op.Op]):
+    def __init__(self, *, learning_rate, beta=0.9, trainable_nodes: Sequence[op.Op]):
         self.trainable_nodes = trainable_nodes
         self.learning_rate = learning_rate
         self.beta = beta
@@ -53,7 +53,7 @@ class Momentum:
 
 
 class Rmsprop:
-    def __init__(self, *, learning_rate, beta=0.9, trainable_nodes: Tuple[op.Op]):
+    def __init__(self, *, learning_rate, beta=0.9, trainable_nodes: Sequence[op.Op]):
         self.trainable_nodes = trainable_nodes
         self.learning_rate = learning_rate
         self.beta = beta
@@ -68,7 +68,7 @@ class Rmsprop:
 
 # http://zh-v2.d2l.ai/chapter_optimization/adam.html
 class Adam:
-    def __init__(self, *, learning_rate, beta1=0.9, beta2=0.999, trainable_nodes: Tuple[op.Op]):
+    def __init__(self, *, learning_rate, beta1=0.9, beta2=0.999, trainable_nodes: Sequence[op.Op]):
         self.trainable_nodes = trainable_nodes
         self.learning_rate = learning_rate
         self.beta1 = beta1

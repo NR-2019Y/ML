@@ -1,6 +1,7 @@
 import numpy as np
 from AUTO_DIFF import my_auto_grad_v0 as op
 from AUTO_DIFF import optimizer
+import matplotlib.pyplot as plt
 
 class RNN(object):
     def __init__(self, dic_len, n_hiddens):
@@ -69,6 +70,8 @@ rnn = RNN(dic_len=len(index2word), n_hiddens=32)
 # trainer =  optimizer.Momentum(learning_rate=3.0, trainable_nodes=rnn.params)
 # trainer =  optimizer.Rmsprop(learning_rate=0.03, trainable_nodes=rnn.params)
 trainer = optimizer.Adam(learning_rate=0.03, trainable_nodes=rnn.params)
+
+cost_list, acc_list = [], []
 for i in range(100):
     logits = rnn(train_x)
     loss = loss_func(logits, train_y)
@@ -78,6 +81,10 @@ for i in range(100):
     trainer()
     train_y_pred = logits._v.argmax(axis=-1)
     train_acc = calc_acc(train_y_pred, train_y)
+
+    cost_list.append(loss._v)
+    acc_list.append(train_acc)
+
     print(f"{i} LOSS:{loss._v} TRAIN_ACC:{train_acc}")
     print("训练集预测", [''.join(index2word[i] for i in yi) for yi in train_y_pred])
     if train_acc >= 1.0 - 1e-5:
@@ -88,3 +95,11 @@ test_str_index = [[word2index[c] for c in si] for si in test_str]
 test_x = np.array([vi[:-1] for vi in test_str_index])
 test_y_pred = rnn(test_x)._v.argmax(axis=-1)
 print("测试数据预测", [''.join(index2word[i] for i in yi) for yi in test_y_pred])
+
+plt.subplot(121)
+plt.plot(cost_list, label="COST")
+plt.legend()
+plt.subplot(122)
+plt.plot(acc_list, label="ACC")
+plt.legend()
+plt.show()

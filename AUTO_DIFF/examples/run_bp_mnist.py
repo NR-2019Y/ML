@@ -47,7 +47,7 @@ train_iter = data_iter.DataIter(train_x, train_y, batch_size=batch_size)
 
 c_train_x, c_test_x, c_train_y, c_test_y = map(op.C, (train_x, test_x, train_y, test_y))
 net = NNET(n_features=784, n_hiddens=128, n_classes=10)
-trainer = optimizer.Adam(learning_rate=0.003, trainable_nodes=net.params)
+trainer = optimizer.Adam(learning_rate=0.001, trainable_nodes=net.params)
 for epoch in range(1, n_epochs + 1):
     for xi, yi in train_iter:
         # print("xi, yi", xi.shape, yi.shape)

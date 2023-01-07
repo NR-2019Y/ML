@@ -244,7 +244,7 @@ class Relu(Op):
 
 class Sigmoid(Op):
     def __init__(self, node):
-        self._v = 1.0 / (1.0 + np.exp(node._v))
+        self._v = 1.0 / (1.0 + np.exp(-node._v))
         self._d = 0.0
         self.nodes = (node,)
 

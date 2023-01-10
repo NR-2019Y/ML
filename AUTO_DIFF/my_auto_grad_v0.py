@@ -15,6 +15,8 @@ eps = 1e-10
 # Op.backward : 图遍历，计算梯度
 
 class Op:
+    def __len__(self):
+        return len(self._v)
     # dfs 实现拓扑排序
     def _dfs(self):
         ord_nodes = []  # 保存拓扑排序结果
@@ -40,7 +42,10 @@ class Op:
 
     def backward(self):
         assert hasattr(self, "_d")
-        self._d = 1.0
+        if isinstance(self._v, np.ndarray):
+            self._d = np.ones_like(self._v)
+        else:
+            self._d = 1.0
         self._dfs()
         for node in self.ord_nodes:
             if hasattr(node, "nodes"):
@@ -53,6 +58,8 @@ class Op:
 
 class C(Op):
     def __init__(self, val, requires_grad=False):
+        if isinstance(val, np.ndarray) and (val.ndim == 0):
+            val = np.sum(val)
         self._v = val
         if requires_grad:
             self._d = 0.0
@@ -177,6 +184,17 @@ class Exp(Op):
         # dn2 / dn1 = n2
         if hasattr(self.nodes[0], "_d"):
             self.nodes[0]._d += self._d * self._v
+
+
+class Square(Op):
+    def __init__(self, node):
+        self._v = np.square(node._v)
+        self._d = 0.0
+        self.nodes = (node,)
+
+    def back_calc_grad(self):
+        if hasattr(self.nodes[0], "_d"):
+            self.nodes[0]._d += 2.0 * self._d * self.nodes[0]._v
 
 
 class Pow(Op):
@@ -330,6 +348,7 @@ class LinearLayer(Op):
 
 class AddBias2D(Op):
     def __init__(self, node_ori, node_b):
+        # assert isinstance(node_b._v, np.ndarray) and node_b._v.ndim == 1
         self._v = node_ori._v + node_b._v
         self._d = 0.0
         self.nodes = (node_ori, node_b)
@@ -340,6 +359,30 @@ class AddBias2D(Op):
             node_ori._d += self._d
         if hasattr(node_b, "_d"):
             node_b._d += np.sum(self._d, axis=0)
+
+
+class AddBiasND(Op):
+    def __init__(self, node_ori, node_b):
+        self._v = node_ori._v + node_b._v
+        self._d = 0.0
+        self.nodes = (node_ori, node_b)
+
+    def back_calc_grad(self):
+        node_ori, node_b = self.nodes
+        if hasattr(node_ori, "_d"):
+            node_ori._d += self._d
+        if hasattr(node_b, "_d"):
+            if isinstance(node_b._v, numbers.Number) or (node_b._v.ndim == 0):
+                node_b._d += np.sum(self._d)
+            else:
+                d = np.sum(self._d, axis=0)
+                for i in range(1, node_ori._v.ndim - 1):
+                    d = np.sum(d, axis=0)
+                if node_b._v.ndim != 1:
+                    assert node_b._v.ndim == node_ori._v.ndim
+                    d = np.expand_dims(d, axis=tuple(range(node_ori._v.ndim - 1)))
+                    assert node_b._v.shape == d.shape
+                node_b._d += d
 
 
 class ListToTensor(Op):

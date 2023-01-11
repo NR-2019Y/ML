@@ -1,7 +1,7 @@
+import tensorflow as tf
 import numpy as np
 
-
-class DataIter(object):
+class TensorIter(object):
     def __init__(self, X, y, *, batch_size, shuffle=True):
         assert len(X) == len(y)
         self.X = X
@@ -18,5 +18,5 @@ class DataIter(object):
             size = len(self.y)
             rand_perm = np.random.permutation(size)
             for i in range(0, size, self.batch_size):
-                idx = rand_perm[i:i + self.batch_size]
-                yield self.X[idx], self.y[idx]
+                idx = rand_perm[i: i + self.batch_size]
+                yield tf.gather(self.X, idx, axis=0), tf.gather(self.y, idx, axis=0)

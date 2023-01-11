@@ -1,6 +1,6 @@
 import numpy as np
 
-from datasets.mnist import load_mnist
+from datasets.load_img import load_mnist
 from AUTO_DIFF import my_auto_grad_v0 as op
 from AUTO_DIFF import data_iter
 from AUTO_DIFF import optimizer
@@ -39,7 +39,7 @@ def calc_acc(logits: np.ndarray, y: np.ndarray):
     return np.mean(logits.argmax(axis=1) == y)
 
 
-train_x, test_x, train_y, test_y = load_mnist.load_mnist()
+train_x, test_x, train_y, test_y = load_mnist()
 
 n_epochs = 1000
 batch_size = 64

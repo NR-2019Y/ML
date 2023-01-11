@@ -17,6 +17,7 @@ eps = 1e-10
 class Op:
     def __len__(self):
         return len(self._v)
+
     # dfs 实现拓扑排序
     def _dfs(self):
         ord_nodes = []  # 保存拓扑排序结果
@@ -135,6 +136,91 @@ class TrueDiv(Op):
             node2._d -= self._d * node1._v / (node2._v ** 2 + eps)
 
 
+def broad_cast_grad(pgrad, shape, pshape):
+    if shape == pshape:
+        return pgrad
+    if not shape:
+        return np.sum(pgrad)
+    if len(shape) < len(pshape):
+        assert len(shape) == 1
+        return np.sum(pgrad, axis=tuple(range(len(pshape - 1))))
+    assert len(shape) == len(pshape)
+    sum_axis = tuple(i for i, (sz1, sz2) in enumerate(zip(shape, pshape)) if sz1 < sz2)
+    return np.sum(pgrad, axis=sum_axis, keepdims=True)
+
+
+class BroadcastAdd(Op):
+    def __init__(self, node1, node2):
+        self._v = node1._v + node2._v
+        self._d = 0.0
+        self._shape1 = np.shape(node1._v)
+        self._shape2 = np.shape(node2._v)
+        self.nodes = (node1, node2)
+
+    def back_calc_grad(self):
+        node1, node2 = self.nodes
+        pshape = np.shape(self._v)
+
+        if hasattr(node1, "_d"):
+            node1._d += broad_cast_grad(self._d, self._shape1, pshape)
+        if hasattr(node2, "_d"):
+            node2._d += broad_cast_grad(self._d, self._shape2, pshape)
+
+
+class BroadcastSub(Op):
+    def __init__(self, node1, node2):
+        self._v = node1._v - node2._v
+        self._d = 0.0
+        self._shape1 = np.shape(node1._v)
+        self._shape2 = np.shape(node2._v)
+        self.nodes = (node1, node2)
+
+    def back_calc_grad(self):
+        node1, node2 = self.nodes
+        pshape = np.shape(self._v)
+
+        if hasattr(node1, "_d"):
+            node1._d += broad_cast_grad(self._d, self._shape1, pshape)
+        if hasattr(node2, "_d"):
+            node2._d -= broad_cast_grad(self._d, self._shape2, pshape)
+
+
+class BroadcastMul(Op):
+    def __init__(self, node1, node2):
+        self._v = node1._v * node2._v
+        self._d = 0.0
+        self._shape1 = np.shape(node1._v)
+        self._shape2 = np.shape(node2._v)
+        self.nodes = (node1, node2)
+
+    def back_calc_grad(self):
+        node1, node2 = self.nodes
+        pshape = np.shape(self._v)
+
+        if hasattr(node1, "_d"):
+            node1._d += broad_cast_grad(self._d * node2._v, self._shape1, pshape)
+        if hasattr(node2, "_d"):
+            node2._d += broad_cast_grad(self._d * node1._v, self._shape2, pshape)
+
+
+class BroadcastDiv(Op):
+    def __init__(self, node1, node2):
+        self._v = node1._v / node2._v
+        self._d = 0.0
+        self._shape1 = np.shape(node1._v)
+        self._shape2 = np.shape(node2._v)
+        self.nodes = (node1, node2)
+
+    def back_calc_grad(self):
+        node1, node2 = self.nodes
+        pshape = np.shape(self._v)
+
+        if hasattr(node1, "_d"):
+            node1._d += broad_cast_grad(self._d / node2._v, self._shape1, pshape)
+        if hasattr(node2, "_d"):
+            node2._d -= broad_cast_grad(self._d * node1._v / (node2._v ** 2 + eps), self._shape2, pshape)
+
+
 class MatMul(Op):
     def __init__(self, node1, node2):
         self._v = np.dot(node1._v, node2._v)
@@ -235,12 +321,11 @@ class Sum(Op):
 
     def back_calc_grad(self):
         if hasattr(self.nodes[0], "_d"):
-            self.nodes[0]._d += self._d * np.ones_like(self.nodes[0]._v)
+            self.nodes[0]._d += np.ones_like(self.nodes[0]._v) * self._d
 
 
 class SumAxis(Op):
     def __init__(self, node, axis=1):
-        # 严格来说应该np.repeat, 考虑到numpy的广播机制，不加入repeat
         self._v = np.sum(node._v, axis=axis, keepdims=True)
         self._d = 0.0
         self._sumaxis = axis
@@ -248,7 +333,8 @@ class SumAxis(Op):
 
     def back_calc_grad(self):
         if hasattr(self.nodes[0], "_d"):
-            self.nodes[0]._d += np.sum(self._d, axis=self._sumaxis, keepdims=True)
+            # self.nodes[0]._d += np.sum(self._d, axis=self._sumaxis, keepdims=True)
+            self.nodes[0]._d += np.ones_like(self.nodes[0]._v) * self._d
 
 
 class Relu(Op):

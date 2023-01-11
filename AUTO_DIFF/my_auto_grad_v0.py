@@ -547,7 +547,7 @@ def my_test_softmax():
     y = C(np.eye(4)[np.random.randint(0, 4, 15)])
     z = C(np.random.uniform(-10, 10, (15, 4)), requires_grad=True)
     z_exp = Exp(z)
-    a = z_exp / SumAxis(z_exp, axis=1)
+    a = BroadcastDiv(z_exp, SumAxis(z_exp, axis=1))
     L = Sum(y * Log(a))
     L.backward()
     print((y._v - a._v) / z._d)

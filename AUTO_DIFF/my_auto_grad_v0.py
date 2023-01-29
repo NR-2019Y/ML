@@ -58,12 +58,14 @@ class Op:
 
 
 class C(Op):
-    def __init__(self, val, requires_grad=False):
+    def __init__(self, val, requires_grad=False, name=None):
         if isinstance(val, np.ndarray) and (val.ndim == 0):
             val = np.sum(val)
         self._v = val
         if requires_grad:
             self._d = 0.0
+        if name is not None:
+            self.name = name
 
 
 class Add(Op):
@@ -143,7 +145,7 @@ def broad_cast_grad(pgrad, shape, pshape):
         return np.sum(pgrad)
     if len(shape) < len(pshape):
         assert len(shape) == 1
-        return np.sum(pgrad, axis=tuple(range(len(pshape - 1))))
+        return np.sum(pgrad, axis=tuple(range(len(pshape) - 1)))
     assert len(shape) == len(pshape)
     sum_axis = tuple(i for i, (sz1, sz2) in enumerate(zip(shape, pshape)) if sz1 < sz2)
     return np.sum(pgrad, axis=sum_axis, keepdims=True)
@@ -328,7 +330,6 @@ class SumAxis(Op):
     def __init__(self, node, axis=1):
         self._v = np.sum(node._v, axis=axis, keepdims=True)
         self._d = 0.0
-        self._sumaxis = axis
         self.nodes = (node,)
 
     def back_calc_grad(self):

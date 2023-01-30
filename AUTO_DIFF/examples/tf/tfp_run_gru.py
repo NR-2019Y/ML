@@ -1,6 +1,8 @@
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 import matplotlib.pyplot as plt
+
+tf.disable_eager_execution()
 
 
 # 占位符模式

@@ -1,7 +1,9 @@
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 import matplotlib.pyplot as plt
 import time
+
+tf.disable_eager_execution()
 
 
 def gen_rand_w_and_b(n_inputs, n_hiddens):

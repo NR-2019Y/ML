@@ -208,22 +208,40 @@ class PadConst(op.Op):
             self.nodes[0]._d += self._d[self._slice_args]
 
 
+def _get_pool_pad(X: op.Op, ksize: Union[tuple, list], stride: Union[tuple, list]) -> op.Op:
+    H, W = X._v.shape[1], X._v.shape[2]
+    kh, kw = ksize
+    sh, sw = stride
+    if math.ceil(H / sh) == math.ceil((H + 1 - kh) / sh):
+        ph = 0
+    else:
+        ph = kh - 1
+    if math.ceil(W / sw) == math.ceil((W + 1 - kw) / sw):
+        pw = 0
+    else:
+        pw = kw - 1
+    if ph == 0 and pw == 0:
+        return X
+    else:
+        pad_width = [[0, 0], [0, ph], [0, pw], [0, 0]]
+        xpad: op.Op = PadConst(X, pad_width=pad_width, constant_values=0.)
+        return xpad
+
+
 def conv2d_padding_same_op(X: op.Op, W: op.Op):
     kh, kw = W._v.shape[0], W._v.shape[1]
-    pad_width = [[0, 0], [kh // 2, 1 - kh // 2], [kw // 2, 1 - kw // 2], [0, 0]]
+    kh0, kw0 = kh - 1, kw - 1
+    kh0half, kw0half = kh0 // 2, kw0 // 2
+    pad_width = [[0, 0], [kh0half, kh0 - kh0half], [kw0half, kw0 - kw0half], [0, 0]]
     xpad: op.Op = PadConst(X, pad_width=pad_width, constant_values=0.)
     return Conv2D(xpad, W)
 
 
 def max_pool2d_padding_same_op(X: op.Op, ksize: Union[tuple, list], stride: Union[tuple, list]):
-    kh, kw = ksize
-    pad_width = [[0, 0], [kh // 2, 1 - kh // 2], [kw // 2, 1 - kw // 2], [0, 0]]
-    xpad: op.Op = PadConst(X, pad_width=pad_width, constant_values=0.)
+    xpad = _get_pool_pad(X, ksize, stride)
     return MaxPool2D(xpad, ksize, stride)
 
 
 def avg_pool2d_padding_same_op(X: op.Op, ksize: Union[tuple, list], stride: Union[tuple, list]):
-    kh, kw = ksize
-    pad_width = [[0, 0], [kh // 2, 1 - kh // 2], [kw // 2, 1 - kw // 2], [0, 0]]
-    xpad: op.Op = PadConst(X, pad_width=pad_width, constant_values=0.)
+    xpad = _get_pool_pad(X, ksize, stride)
     return AvgPool2D(xpad, ksize, stride)

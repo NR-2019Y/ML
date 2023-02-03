@@ -11,12 +11,35 @@ import matplotlib.pyplot as plt
 eps = 1e-10
 
 
+class NoTraining:
+    __state_is_training = True
+
+    def __enter__(self):
+        NoTraining.__state_is_training = False
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        NoTraining.__state_is_training = True
+
+    @staticmethod
+    def mode_is_training():
+        return NoTraining.__state_is_training
+
+
+mode_is_training = NoTraining.mode_is_training
+
+
+def get_reduced_result(ori, reduction):
+    if reduction is None:
+        return ori
+    else:
+        assert callable(reduction)
+        return reduction(ori)
+
+
 # 前向传播：将梯度置0
 # Op.backward : 图遍历，计算梯度
 
 class Op:
-    def __len__(self):
-        return len(self._v)
 
     # dfs 实现拓扑排序
     def _dfs(self):
@@ -52,9 +75,19 @@ class Op:
             if hasattr(node, "nodes"):
                 node.back_calc_grad()
 
-    @abc.abstractmethod
     def back_calc_grad(self):
-        pass
+        raise NotImplementedError
+
+    def __len__(self):
+        return len(self._v)
+
+    @property
+    def shape(self):
+        return np.shape(self._v)
+
+    @property
+    def ndim(self):
+        return np.ndim(self._v)
 
 
 class C(Op):
@@ -225,6 +258,7 @@ class BroadcastDiv(Op):
 
 class MatMul(Op):
     def __init__(self, node1, node2):
+        assert node1.ndim >= 2 and node2.ndim == 2
         self._v = np.dot(node1._v, node2._v)
         self._d = 0.0
         self.nodes = (node1, node2)
@@ -234,7 +268,10 @@ class MatMul(Op):
         if hasattr(node1, "_d"):
             node1._d += np.dot(self._d, node2._v.T)
         if hasattr(node2, "_d"):
-            node2._d += np.dot(node1._v.T, self._d)
+            node2._d += np.dot(
+                node1._v.reshape((-1, node1.shape[-1])).T,
+                self._d.reshape((-1, self.shape[-1]))
+            )
 
 
 class Sin(Op):
@@ -372,8 +409,8 @@ class Tanh(Op):
 
 
 def np_softmax(z):
-    z_exp_sc = np.exp(z - np.max(z, axis=1, keepdims=True))
-    return z_exp_sc / np.sum(z_exp_sc, axis=1, keepdims=True)
+    z_exp_sc = np.exp(z - np.max(z, axis=-1, keepdims=True))
+    return z_exp_sc / np.sum(z_exp_sc, axis=-1, keepdims=True)
 
 
 class Softmax(Op):
@@ -384,42 +421,35 @@ class Softmax(Op):
 
     def back_calc_grad(self):
         if hasattr(self.nodes[0], "_d"):
-            self.nodes[0]._d += self._d * self._v - np.sum(self._d * np.square(self._v), axis=1, keepdims=True)
+            self.nodes[0]._d += self._d * self._v - np.sum(self._d * np.square(self._v), axis=-1, keepdims=True)
 
 
 class CrossEntropyLossLayer(Op):
     def __init__(self, node_logits, node_y):
-        self.batch_size, self.n_classes = node_logits._v.shape
+        assert not hasattr(node_y, "_d")
+        self._n_classes = node_logits.shape[-1]
         proba = np_softmax(node_logits._v)
         self._proba = proba
-        self._v = -np.mean(np.log(proba[range(self.batch_size), node_y._v] + eps))
+        self._scale_size = np.prod(node_logits.shape[:-1])
+        proba_flat = proba.reshape((-1, self._n_classes))
+        y_flat = node_y._v.ravel()
+        self._v = -np.mean(np.log(proba_flat[range(self._scale_size), y_flat] + eps))
         self._d = 0.0
         self.nodes = (node_logits, node_y)
 
     def back_calc_grad(self):
         node_logits, node_y = self.nodes
-        assert not hasattr(node_y, "_d")
-        node_logits._d += (1.0 / self.batch_size) * self._d * (
-                self._proba - np.eye(self.n_classes, dtype=np.float64)[node_y._v])
-
-
-# class CrossEntropyLossLayer(Op):
-#     def __init__(self, node_logits, node_y):
-#         self.batch_size, self.n_classes = node_logits._v.shape
-#         proba = np_softmax(node_logits._v)
-#         self._proba = proba
-#         self._v = -(1.0 / self.batch_size) * np.sum(node_y._v * np.log(proba + eps))
-#         self._d = 0.0
-#         self.nodes = (node_logits, node_y)
-#
-#     def back_calc_grad(self):
-#         node_logits, node_y = self.nodes
-#         assert not hasattr(node_y, "_d")
-#         node_logits._d += (1.0 / self.batch_size) * self._d * (self._proba - node_y._v)
+        node_logits._d += (1.0 / self._scale_size) * self._d * (
+                self._proba - np.eye(self._n_classes, dtype=np.float64)[node_y._v]
+        )
 
 
 class LinearLayer(Op):
     def __init__(self, node_x, node_w, node_b):
+        assert node_x.ndim >= 2
+        assert node_w.ndim == 2
+        assert node_b.ndim == 1
+        assert hasattr(node_w, "_d") and hasattr(node_b, "_d")
         self._v = np.dot(node_x._v, node_w._v) + node_b._v
         self._d = 0.0
         self.nodes = (node_x, node_w, node_b)
@@ -428,14 +458,17 @@ class LinearLayer(Op):
         node_x, node_w, node_b = self.nodes
         if hasattr(node_x, "_d"):
             node_x._d += np.dot(self._d, node_w._v.T)
-        assert hasattr(node_w, "_d") and hasattr(node_b, "_d")
-        node_w._d += np.dot(node_x._v.T, self._d)
-        node_b._d += np.sum(self._d, axis=0)
+        node_w._d += np.dot(
+            node_x._v.reshape((-1, node_x.shape[-1])).T,
+            self._d.reshape((-1, self.shape[-1]))
+        )
+        node_b._d += np.sum(self._d, axis=tuple(range(node_x.ndim - 1)))
 
 
 class AddBias2D(Op):
-    def __init__(self, node_ori, node_b):
-        # assert isinstance(node_b._v, np.ndarray) and node_b._v.ndim == 1
+    def __init__(self, node_ori: Op, node_b: Op):
+        assert node_ori.ndim >= 2
+        assert node_b.ndim == 1
         self._v = node_ori._v + node_b._v
         self._d = 0.0
         self.nodes = (node_ori, node_b)
@@ -449,7 +482,9 @@ class AddBias2D(Op):
 
 
 class AddBiasND(Op):
-    def __init__(self, node_ori, node_b):
+    def __init__(self, node_ori: Op, node_b: Op):
+        assert node_ori.ndim >= 2
+        assert node_b.ndim == 1
         self._v = node_ori._v + node_b._v
         self._d = 0.0
         self.nodes = (node_ori, node_b)
@@ -459,17 +494,21 @@ class AddBiasND(Op):
         if hasattr(node_ori, "_d"):
             node_ori._d += self._d
         if hasattr(node_b, "_d"):
-            if isinstance(node_b._v, numbers.Number) or (node_b._v.ndim == 0):
-                node_b._d += np.sum(self._d)
-            else:
-                d = np.sum(self._d, axis=0)
-                for i in range(1, node_ori._v.ndim - 1):
-                    d = np.sum(d, axis=0)
-                if node_b._v.ndim != 1:
-                    assert node_b._v.ndim == node_ori._v.ndim
-                    d = np.expand_dims(d, axis=tuple(range(node_ori._v.ndim - 1)))
-                    assert node_b._v.shape == d.shape
-                node_b._d += d
+            node_b._d += np.sum(self._d, axis=tuple(range(node_ori.ndim - 1)))
+
+
+class GetItem(Op):
+    def __init__(self, node: Op, arg):
+        self._v = node._v[arg]
+        self._d = 0
+        self.arg = arg
+        self.nodes = (node,)
+
+    def back_calc_grad(self):
+        if hasattr(self.nodes[0], "_d"):
+            if not isinstance(self.nodes[0]._d, np.ndarray):
+                self.nodes[0]._d = np.zeros_like(self.nodes[0]._v)
+            self.nodes[0]._d[self.arg] += self._d
 
 
 class ListToTensor(Op):
@@ -528,6 +567,7 @@ Op.__mul__ = OpInit2Func(Mul)
 Op.__truediv__ = OpInit2Func(TrueDiv)
 Op.__matmul__ = OpInit2Func(MatMul)
 Op.__pow__ = OpInit2Func(Pow)
+Op.__getitem__ = OpInit2Func(GetItem)
 
 
 # x1 = C(2.0, requires_grad=True)

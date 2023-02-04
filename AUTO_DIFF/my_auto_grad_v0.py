@@ -91,6 +91,30 @@ class Op:
     def ndim(self):
         return np.ndim(self._v)
 
+    def __add__(self, other):
+        return Add(self, other)
+
+    def __sub__(self, other):
+        return Sub(self, other)
+
+    def __neg__(self):
+        return Neg(self)
+
+    def __mul__(self, other):
+        return Mul(self, other)
+
+    def __truediv__(self, other):
+        return TrueDiv(self, other)
+
+    def __matmul__(self, other):
+        return MatMul(self, other)
+
+    def __pow__(self, power, modulo=None):
+        return Pow(self, power)
+
+    def __getitem__(self, item):
+        return GetItem(item)
+
 
 class C(Op):
     def __init__(self, val, requires_grad=False, name=None):
@@ -665,20 +689,6 @@ class Dropout(Op):
     def back_calc_grad(self):
         if hasattr(self.nodes[0], "_d"):
             self.nodes[0]._d += self._d * self._v_mul
-
-
-def OpInit2Func(OpClass):
-    return lambda *args, **kwargs: OpClass(*args, **kwargs)
-
-
-Op.__add__ = OpInit2Func(Add)
-Op.__sub__ = OpInit2Func(Sub)
-Op.__neg__ = OpInit2Func(Neg)
-Op.__mul__ = OpInit2Func(Mul)
-Op.__truediv__ = OpInit2Func(TrueDiv)
-Op.__matmul__ = OpInit2Func(MatMul)
-Op.__pow__ = OpInit2Func(Pow)
-Op.__getitem__ = OpInit2Func(GetItem)
 
 
 # x = C(np.linspace(-5, 5, 1000), requires_grad=True)

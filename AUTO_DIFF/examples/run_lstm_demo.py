@@ -40,10 +40,10 @@ class LSTM(object):
         L = []
         for i in range(n_steps):
             xi = op.C(x_one_hot[:, i, :])
-            I = op.Sigmoid(op.AddBias2D(op.MatMul(xi, W_xi) + op.MatMul(H, W_hi), b_i))
-            F = op.Sigmoid(op.AddBias2D(op.MatMul(xi, W_xf) + op.MatMul(H, W_hf), b_f))
-            O = op.Sigmoid(op.AddBias2D(op.MatMul(xi, W_xo) + op.MatMul(H, W_ho), b_o))
-            C_d = op.Tanh(op.AddBias2D(op.MatMul(xi, W_xc) + op.MatMul(H, W_hc), b_c))
+            I = op.Sigmoid(op.AddBiasND(op.MatMul(xi, W_xi) + op.MatMul(H, W_hi), b_i))
+            F = op.Sigmoid(op.AddBiasND(op.MatMul(xi, W_xf) + op.MatMul(H, W_hf), b_f))
+            O = op.Sigmoid(op.AddBiasND(op.MatMul(xi, W_xo) + op.MatMul(H, W_ho), b_o))
+            C_d = op.Tanh(op.AddBiasND(op.MatMul(xi, W_xc) + op.MatMul(H, W_hc), b_c))
             C = F * C + I * C_d
             H = O * op.Tanh(C)
             Y = op.LinearLayer(H, W_hq, b_q)

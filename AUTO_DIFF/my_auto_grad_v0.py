@@ -648,7 +648,7 @@ def Flatten(node: Op):
     assert node.ndim >= 2
     if node.ndim == 2:
         return node
-    return Reshape(node, (-1, node.shape[-1]))
+    return Reshape(node, (node.shape[0], -1))
 
 
 class Dropout(Op):

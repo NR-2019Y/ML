@@ -3,11 +3,13 @@ import abc
 import numbers
 import typing
 import matplotlib.pyplot as plt
+from deprecated import deprecated
 
 # 实现反向自动微分
 # 参考
 # https://zhuanlan.zhihu.com/p/161635270
 # https://github.com/dlsys-course/assignment1-2018/blob/master/autodiff.py
+
 eps = 1e-10
 
 
@@ -221,17 +223,16 @@ class BroadcastSub(Op):
 
 
 class BroadcastMul(Op):
-    def __init__(self, node1, node2):
+    def __init__(self, node1: Op, node2: Op):
         self._v = node1._v * node2._v
         self._d = 0.0
-        self._shape1 = np.shape(node1._v)
-        self._shape2 = np.shape(node2._v)
+        self._shape1 = node1.shape
+        self._shape2 = node2.shape
         self.nodes = (node1, node2)
 
     def back_calc_grad(self):
         node1, node2 = self.nodes
         pshape = np.shape(self._v)
-
         if hasattr(node1, "_d"):
             node1._d += broad_cast_grad(self._d * node2._v, self._shape1, pshape)
         if hasattr(node2, "_d"):
@@ -312,7 +313,7 @@ class Exp(Op):
 
 
 class Square(Op):
-    def __init__(self, node):
+    def __init__(self, node: Op):
         self._v = np.square(node._v)
         self._d = 0.0
         self.nodes = (node,)
@@ -320,6 +321,17 @@ class Square(Op):
     def back_calc_grad(self):
         if hasattr(self.nodes[0], "_d"):
             self.nodes[0]._d += 2.0 * self._d * self.nodes[0]._v
+
+
+class Sqrt(Op):
+    def __init__(self, node: Op):
+        self._v = np.sqrt(node._v)
+        self._d = 0.0
+        self.nodes = (node,)
+
+    def back_calc_grad(self):
+        if hasattr(self.nodes[0], "_d"):
+            self.nodes[0]._d += 0.5 * self._d / (self._v + eps)
 
 
 class Pow(Op):
@@ -352,27 +364,104 @@ class Log(Op):
             self.nodes[0]._d += self._d * self._g / self.nodes[0]._v
 
 
-class Sum(Op):
-    def __init__(self, node):
-        self._v = np.sum(node._v)
-        self._d = 0.0
-        self.nodes = (node,)
+class ReduceSum(Op):
+    def __init__(self, node, axis=None, keepdims=False):
+        self._v = np.sum(node._v, axis=axis, keepdims=keepdims)
+        if mode_is_training():
+            self._d = 0.0
+            self.nodes = (node,)
+            self._axis_reduce = axis
+            if keepdims:
+                self._axis_reduce = None
+            else:
+                self._axis_reduce = axis
 
     def back_calc_grad(self):
         if hasattr(self.nodes[0], "_d"):
-            self.nodes[0]._d += np.ones_like(self.nodes[0]._v) * self._d
+            if self._axis_reduce is None:
+                self.nodes[0]._d += self._d * np.ones_like(self.nodes[0]._v)
+            else:
+                self.nodes[0]._d += np.expand_dims(self._d, self._axis_reduce) * np.ones_like(self.nodes[0]._v)
 
 
-class SumAxis(Op):
-    def __init__(self, node, axis=1):
-        self._v = np.sum(node._v, axis=axis, keepdims=True)
-        self._d = 0.0
-        self.nodes = (node,)
+class ReduceMean(Op):
+    def __init__(self, node, axis=None, keepdims=False):
+        self._v = np.mean(node._v, axis=axis, keepdims=keepdims)
+        if mode_is_training():
+            self._d = 0.0
+            self.nodes = (node,)
+            self._axis_reduce = axis
+            if isinstance(axis, numbers.Integral):
+                axis = (axis,)
+            self._scale_size = 1. / np.prod(node.shape) if axis is None else 1. / np.prod([node.shape[i] for i in axis])
+            if keepdims:
+                self._axis_reduce = None
+            else:
+                self._axis_reduce = axis
 
     def back_calc_grad(self):
         if hasattr(self.nodes[0], "_d"):
-            # self.nodes[0]._d += np.sum(self._d, axis=self._sumaxis, keepdims=True)
-            self.nodes[0]._d += np.ones_like(self.nodes[0]._v) * self._d
+            if self._axis_reduce is None:
+                self.nodes[0]._d += self._scale_size * self._d * np.ones_like(self.nodes[0]._v)
+            else:
+                self.nodes[0]._d += self._scale_size * np.expand_dims(self._d, self._axis_reduce) \
+                                    * np.ones_like(self.nodes[0]._v)
+
+
+class ReduceVar(Op):
+    def __init__(self, node, axis=None, keepdims=False):
+        if not mode_is_training():
+            self._v = np.var(node._v, axis=axis, keepdims=keepdims)
+        else:
+            x_scale = node._v - np.mean(node._v, axis=axis, keepdims=True)
+            self._cache_x_scale = x_scale
+            self._v = np.mean(np.square(x_scale), axis=axis, keepdims=keepdims)
+            self._d = 0.0
+            self.nodes = (node,)
+            self._axis_reduce = axis
+            if isinstance(axis, numbers.Integral):
+                axis = (axis,)
+            scale_size = 2. / np.prod(node.shape) if axis is None else 2. / np.prod([node.shape[i] for i in axis])
+            self._cache_x_scale *= scale_size
+            if keepdims:
+                self._axis_reduce = None
+            else:
+                self._axis_reduce = axis
+
+    def back_calc_grad(self):
+        if hasattr(self.nodes[0], "_d"):
+            if self._axis_reduce is None:
+                self.nodes[0]._d += self._d * self._cache_x_scale
+            else:
+                self.nodes[0]._d += np.expand_dims(self._d, self._axis_reduce) * self._cache_x_scale
+            del self._cache_x_scale
+
+
+class Scaler(Op):
+    def __init__(self, node: Op, axis=None):
+        x_mean = np.mean(node._v, axis=axis, keepdims=True)
+        x_sc = node._v - x_mean
+        x_var = np.mean(np.square(x_sc), axis=axis, keepdims=True)
+        x_std = np.sqrt(x_var)
+        self._v = x_sc / (x_std + eps)
+        if mode_is_training():
+            self._d = 0.0
+            self._bn_mean = x_mean
+            self._bn_var = x_var
+            self._cache_val = x_std
+            self._arg_axis = axis
+            self.nodes = (node,)
+
+    def get_grad(self, grad):
+        x_std = self._cache_val
+        d = grad / x_std - self._v * np.mean(grad * self._v, axis=self._arg_axis, keepdims=True) / x_std
+        d -= np.mean(d, axis=self._arg_axis, keepdims=True)
+        del self._cache_val
+        return d
+
+    def back_calc_grad(self):
+        if hasattr(self.nodes[0], "_d"):
+            self.nodes[0] += self.get_grad(self._d)
 
 
 class Relu(Op):
@@ -465,6 +554,7 @@ class LinearLayer(Op):
         node_b._d += np.sum(self._d, axis=tuple(range(node_x.ndim - 1)))
 
 
+@deprecated('Instead, use AddBiasND')
 class AddBias2D(Op):
     def __init__(self, node_ori: Op, node_b: Op):
         assert node_ori.ndim >= 2
@@ -543,17 +633,38 @@ class Transpose(Op):
 
 
 class Reshape(Op):
-    def __init__(self, node, new_shape):
-        self._ori_shape = node._v.shape
-        # print("self._ori_shape", self._ori_shape)
+    def __init__(self, node: Op, new_shape):
+        self._ori_shape = node.shape
         self._v = np.reshape(node._v, new_shape)
-        # print("self._v.shape", self._v.shape)
         self._d = 0.0
         self.nodes = (node,)
 
     def back_calc_grad(self):
         if hasattr(self.nodes[0], "_d"):
             self.nodes[0]._d += np.reshape(self._d, self._ori_shape)
+
+
+def Flatten(node: Op):
+    assert node.ndim >= 2
+    if node.ndim == 2:
+        return node
+    return Reshape(node, (-1, node.shape[-1]))
+
+
+class Dropout(Op):
+    def __init__(self, node: Op, *, rate):
+        if not mode_is_training():
+            self._v = node._v
+        else:
+            p = 1 - rate
+            self._v_mul = (1.0 / p) * np.random.binomial(1, p, size=node.shape)
+            self._v = node._v * self._v_mul
+            self._d = 0.0
+            self.nodes = (node,)
+
+    def back_calc_grad(self):
+        if hasattr(self.nodes[0], "_d"):
+            self.nodes[0]._d += self._d * self._v_mul
 
 
 def OpInit2Func(OpClass):
@@ -570,12 +681,6 @@ Op.__pow__ = OpInit2Func(Pow)
 Op.__getitem__ = OpInit2Func(GetItem)
 
 
-# x1 = C(2.0, requires_grad=True)
-# x2 = C(3.0, requires_grad=True)
-# z = (x1 ** C(2)) * x2 + x2 + C(2.0)
-# z.backward()
-# print(x1._d, x2._d)
-
 # x = C(np.linspace(-5, 5, 1000), requires_grad=True)
 # y = C(1.0) / (C(1.0) + Exp(-x))
 # y.backward()
@@ -588,10 +693,10 @@ def my_test_softmax():
     y = C(np.eye(4)[np.random.randint(0, 4, 15)])
     z = C(np.random.uniform(-10, 10, (15, 4)), requires_grad=True)
     z_exp = Exp(z)
-    a = BroadcastDiv(z_exp, SumAxis(z_exp, axis=1))
-    L = Sum(y * Log(a))
+    a = BroadcastDiv(z_exp, ReduceSum(z_exp, axis=1, keepdims=True))
+    L = ReduceMean(ReduceSum(y * Log(a), axis=1))
     L.backward()
-    print((y._v - a._v) / z._d)
+    print(z._d / (y._v - a._v))
 
 
 if __name__ == '__main__':

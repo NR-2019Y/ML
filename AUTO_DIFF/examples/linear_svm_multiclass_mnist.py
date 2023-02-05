@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from AUTO_DIFF import my_auto_grad_v0 as op
 from AUTO_DIFF import optimizer
-from AUTO_DIFF import data_iter
+from AUTO_DIFF import data_iter, layers
 from datasets.load_img import load_mnist
 
 
@@ -10,26 +10,23 @@ class SVM:
     # OVR实现多分类
     def __init__(self, *, n_features, n_classes, lam=0.0):
         self.lam = lam
-        W = op.C(np.random.normal(size=(n_features, n_classes)))
-        b = op.C(np.zeros(n_classes))
-        self.params = W, b
+        self.dense = layers.Dense(units=n_classes, input_dim=n_features, use_bias=True, l2_reg=lam)
+        self.params = self.dense.params
+        self.regularizer_l2_lam_and_params = self.dense.regularizer_l2_lam_and_params
 
     def init_grad(self):
         for param in self.params:
             param._d = 0.0
 
-    def __call__(self, X):
+    def __call__(self, X: op.Op):
         self.init_grad()
-        W, b = self.params
-        return op.AddBiasND(op.MatMul(X, W), b)
+        return self.dense(X)
 
     # loss: hinge
     def calc_cost(self, logits: op.Op, ysig: op.Op):
-        n_samples = len(ysig)
-        return (
-                op.C(1.0 / n_samples) * op.Sum(op.Relu(op.C(1.0) - ysig * logits)) +
-                op.C(self.lam / n_samples) * op.Sum(op.Square(self.params[0]))
-        )
+        return op.RegularizerL2Wrap(op.HingleLoss(logits, ysig),
+                                    svm.regularizer_l2_lam_and_params,
+                                    calc_regularizer_loss=True)
 
 
 train_x, test_x, train_y, test_y = load_mnist()
@@ -42,7 +39,7 @@ batch_size = 64
 n_epochs = 100
 
 train_iter = data_iter.DataIter(train_x, train_y_sig, batch_size=batch_size)
-svm = SVM(n_features=n_features, n_classes=n_classes, lam=0.01)
+svm = SVM(n_features=n_features, n_classes=n_classes, lam=0.001)
 updater = optimizer.Adam(learning_rate=0.001, trainable_nodes=svm.params)
 
 train_cost_list, test_cost_list, train_acc_list, test_acc_list = [], [], [], []

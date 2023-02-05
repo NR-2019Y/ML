@@ -10,13 +10,15 @@ class Layer:
 
 
 class Dense(Layer):
-    def __init__(self, units, *, input_dim, use_bias=True):
+    def __init__(self, units, *, input_dim, l2_reg=0., use_bias=True):
         W = op.C(np.random.normal(loc=0., scale=0.01, size=(input_dim, units)), requires_grad=True)
         if use_bias:
             b = op.C(np.zeros(units), requires_grad=True)
             self.params = (W, b)
         else:
             self.params = (W,)
+        if l2_reg:
+            self.regularizer_l2_lam_and_params = ((l2_reg, W),)
 
     def __call__(self, X: op.Op):
         if len(self.params) == 1:
@@ -129,7 +131,7 @@ class BatchNorm(Layer):
         assert isinstance(axis, numbers.Integral)
         if axis < 0:
             axis = ndim - axis
-        self._axis_to_reduce = tuple(i for i in range(ndim) if i != in axis)
+        self._axis_to_reduce = tuple(i for i in range(ndim) if i != axis)
 
     def __call__(self, X: op.Op):
         gamma, beta = self.params

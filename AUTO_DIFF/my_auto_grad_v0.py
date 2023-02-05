@@ -2,6 +2,7 @@ import numpy as np
 import abc
 import numbers
 import typing
+from collections.abc import Iterable
 import matplotlib.pyplot as plt
 from deprecated import deprecated
 
@@ -537,6 +538,22 @@ class Softmax(Op):
             self.nodes[0]._d += self._d * self._v - np.sum(self._d * np.square(self._v), axis=-1, keepdims=True)
 
 
+class HingleLoss(Op):
+    def __init__(self, node_logits, node_y_sig):
+        assert not hasattr(node_y_sig, "_d")
+        assert node_logits.shape == node_y_sig.shape
+        self._scale = 1. / np.prod(node_logits.shape[:-1])
+        self._loss_before_reduce = np.maximum(1. - node_y_sig._v * node_logits._v, 0.)
+        self._ysig = node_y_sig._v
+        self._v = self._scale * np.sum(self._loss_before_reduce)
+        self._d = 0.
+        self.nodes = (node_logits,)
+
+    def back_calc_grad(self):
+        if hasattr(self.nodes[0], "_d"):
+            self.nodes[0]._d += -self._scale * self._ysig * (self._loss_before_reduce > 0.)
+
+
 class CrossEntropyLossLayer(Op):
     def __init__(self, node_logits, node_y):
         assert not hasattr(node_y, "_d")
@@ -689,6 +706,27 @@ class Dropout(Op):
     def back_calc_grad(self):
         if hasattr(self.nodes[0], "_d"):
             self.nodes[0]._d += self._d * self._v_mul
+
+
+class RegularizerL2Wrap(Op):
+    def __init__(self, node: Op, lam_and_node: Iterable, *, calc_regularizer_loss=False):
+        if not calc_regularizer_loss:
+            self._v = node._v
+        else:
+            assert node.ndim == 0
+            self._v = node._v
+            for lam, nd in lam_and_node:
+                self._v = self._v + 0.5 * lam * np.sum(np.square(nd._v))
+        self._d = 0.0
+        self.nodes = (node,)
+        self._lam_and_node = lam_and_node
+
+    def back_calc_grad(self):
+        for lam, node in self._lam_and_node:
+            assert not hasattr(node, "nodes") and hasattr(node, "_d")
+            node._d += lam * node._v
+        if hasattr(self.nodes[0], "_d"):
+            self.nodes[0]._d += self._d
 
 
 # x = C(np.linspace(-5, 5, 1000), requires_grad=True)

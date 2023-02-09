@@ -2,6 +2,7 @@ import numpy as np
 import abc
 import numbers
 import typing
+from typing import Union, Tuple
 from collections.abc import Iterable
 import matplotlib.pyplot as plt
 from deprecated import deprecated
@@ -43,6 +44,9 @@ def get_reduced_result(ori, reduction):
 # Op.backward : 图遍历，计算梯度
 
 class Op:
+    _d: Union[numbers.Integral, np.ndarray]
+    _v: Union[numbers.Integral, np.ndarray]
+    nodes: Tuple[Op, ...]
 
     # dfs 实现拓扑排序
     def _dfs(self):

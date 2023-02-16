@@ -46,7 +46,7 @@ def get_reduced_result(ori, reduction):
 class Op:
     _d: Union[numbers.Integral, np.ndarray]
     _v: Union[numbers.Integral, np.ndarray]
-    nodes: Tuple[Op, ...]
+    nodes: tuple
 
     # dfs 实现拓扑排序
     def _dfs(self):
@@ -118,7 +118,7 @@ class Op:
         return Pow(self, power)
 
     def __getitem__(self, item):
-        return GetItem(item)
+        return GetItem(self, item)
 
 
 class C(Op):

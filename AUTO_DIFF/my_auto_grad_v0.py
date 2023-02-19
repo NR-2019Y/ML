@@ -210,7 +210,7 @@ def broad_cast_grad(pgrad, shape, pshape):
     if len(shape) < len(pshape):
         diff = len(pshape) - len(shape)
         shape = (1,) * diff + shape
-        pgrad = np.reshape(pgrad, shape)
+        # pgrad = np.reshape(pgrad, shape)
         sum_axis = tuple(i for i, (sz1, sz2) in enumerate(zip(shape, pshape)) if sz1 < sz2)
         return np.squeeze(np.sum(pgrad, axis=sum_axis, keepdims=True), axis=tuple(range(diff)))
     else:
@@ -569,9 +569,11 @@ class CrossEntropyLossLayer(Op):
         proba = np_softmax(node_logits._v)
         self._proba = proba
         self._scale_size = np.prod(node_logits.shape[:-1])
-        proba_flat = proba.reshape((-1, self._n_classes))
-        y_flat = node_y._v.ravel()
-        self._v = -np.mean(np.log(proba_flat[range(self._scale_size), y_flat] + eps))
+        # proba_flat = proba.reshape((-1, self._n_classes))
+        # y_flat = node_y._v.ravel()
+        self._v = -np.mean(
+            np.log(np.take_along_axis(proba, np.expand_dims(node_y._v, -1), axis=-1).squeeze(axis=-1) + eps)
+        )
         self._d = 0.0
         self.nodes = (node_logits, node_y)
 
@@ -746,12 +748,14 @@ class RegularizerL2Wrap(Op):
 
 # # softmax 测试 OK
 def my_test_softmax():
-    y = C(np.eye(4)[np.random.randint(0, 4, 15)])
-    z = C(np.random.uniform(-10, 10, (15, 4)), requires_grad=True)
+    y = C(np.eye(4)[np.random.randint(0, 4, (8, 15))])
+    z = C(np.random.uniform(-10, 10, (8, 15, 4)), requires_grad=True)
     z_exp = Exp(z)
-    a = BroadcastDiv(z_exp, ReduceSum(z_exp, axis=1, keepdims=True))
-    L = ReduceMean(ReduceSum(y * Log(a), axis=1))
+    a = BroadcastDiv(z_exp, ReduceSum(z_exp, axis=-1, keepdims=True))
+    L = ReduceMean(ReduceSum(y * Log(a), axis=-1))
     L.backward()
+    L1 = CrossEntropyLossLayer(z, C(y._v.argmax(-1)))
+    print(L._v, L1._v)
     print(z._d / (y._v - a._v))
 
 

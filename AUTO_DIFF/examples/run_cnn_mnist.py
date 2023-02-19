@@ -1,7 +1,7 @@
 import numpy as np
 import datetime
 from AUTO_DIFF import my_auto_grad_v0 as op
-from AUTO_DIFF import cnn_op_v0 as cnn_op
+from AUTO_DIFF import fast_conv_op_v0 as cnn_op
 from AUTO_DIFF import data_iter
 from AUTO_DIFF import optimizer
 from datasets.load_img import load_mnist
@@ -28,10 +28,10 @@ class CNN:
         W1, b1, W2, b2, W3, b3 = self.params
         L1 = op.BroadcastAdd(cnn_op.Conv2D(X, W1), b1)
         L1 = op.Relu(L1)
-        L1 = cnn_op.MaxPool2D(L1, ksize=[2, 2], stride=[2, 2])
+        L1 = cnn_op.MaxPool2D(L1, ksize=[2, 2], strides=[2, 2])
         L2 = op.BroadcastAdd(cnn_op.Conv2D(L1, W2), b2)
         L2 = op.Relu(L2)
-        L2 = cnn_op.MaxPool2D(L2, ksize=[2, 2], stride=[2, 2])
+        L2 = cnn_op.MaxPool2D(L2, ksize=[2, 2], strides=[2, 2])
         L_FLATTEN = op.Reshape(L2, (-1, W3._v.shape[0]))
         logits = op.LinearLayer(L_FLATTEN, W3, b3)
         return logits
